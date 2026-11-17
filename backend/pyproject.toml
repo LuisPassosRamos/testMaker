@@ -2,9 +2,7 @@
 name = "prova-pronta"
 version = "0.1.0"
 description = "Organizador de provas e atividades escolares: extrai, confere, diagrama e envia para impressão."
-readme = "../README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",
