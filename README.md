@@ -44,7 +44,19 @@ Uma prova por vez. Envio em lote de várias provas ainda não existe.
 
 ---
 
-## Instalação no Windows
+## No ar para os professores
+
+O jeito recomendado é um servidor gratuito sempre ligado com um endereço curto, por exemplo **provamadre.duckdns.org**:
+
+- **Servidor:** Oracle Cloud *Always Free* em São Paulo (Docker, HTTPS automático com Caddy).
+- **Banco de dados:** PostgreSQL gratuito no Neon (São Paulo) — guarda provas em andamento, arquivos e modelos de cabeçalho.
+- **Acesso:** um **código da escola** que cada professor digita uma vez por aparelho.
+
+O passo a passo completo, com os scripts prontos, está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. Para usar só num computador da escola, siga a instalação abaixo.
+
+---
+
+## Instalação no Windows (um computador)
 
 **Programas necessários** (instale uma vez, pelo PowerShell ou pelo site oficial de cada um):
 
@@ -83,7 +95,8 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 
 ## Privacidade e segurança
 
-- Tudo roda no computador da escola; nada é enviado a serviços externos sem ação explícita (e-mail para a impressão ou IA com confirmação).
+- Nada é enviado a serviços externos sem ação explícita (e-mail para a impressão ou IA com confirmação). No servidor, os dados ficam no seu banco PostgreSQL.
+- Na internet, o site exige o código da escola em toda a API, limita tentativas de login e envios por hora e usa HTTPS.
 - Arquivos enviados são tratados como não confiáveis: o tipo é identificado pelo conteúdo, há limites de tamanho/páginas/resolução, arquivos com macro são recusados e há proteção contra arquivos compactados maliciosos.
 - Provas não alteradas há mais de 72 h (configurável) são apagadas automaticamente, junto com os e-mails de teste.
 - Os registros (logs) nunca guardam o conteúdo das provas — só identificadores aleatórios e tempos.
@@ -97,7 +110,8 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 - Tabelas de PDFs e fotos ficam como imagem (não editáveis); tabelas de arquivos Word são editáveis na impressão, mas a edição de células na conferência ainda não existe.
 - OCR não reconhece negrito/itálico/sublinhado nem escrita à mão; expoentes podem ser lidos como números comuns (o sistema avisa).
 - A paginação do Word baixado pode variar um pouco se ele for aberto em outro programa; o PDF é a referência para impressão.
-- Sem login: pensado para uso local. Para hospedar, coloque atrás de autenticação (veja a arquitetura).
+- Acesso por um código único da escola, sem contas individuais por professor.
+- Um único servidor por instalação (as tarefas em segundo plano ficam na memória do processo).
 - Assistente de IA testado com respostas simuladas; não foi validado contra a API real nesta versão.
 
 ---
@@ -108,9 +122,13 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 backend/   FastAPI · extração (DOCX, PDF, OCR) · estruturação · python-docx · e-mail · IA opcional
 frontend/  React 19 + TypeScript + Vite + Tailwind 4
 samples/   provas sintéticas (geradas) + expected.json
-docs/      arquitetura e capturas de tela
-scripts/   setup.ps1 · start.ps1 · dev.ps1
+docs/      arquitetura, implantação e capturas de tela
+scripts/   setup.ps1 · start.ps1 · dev.ps1 (Windows)
+deploy/    docker-compose + Caddy + scripts do servidor
+Dockerfile imagem única: API + site + LibreOffice + Tesseract
 ```
+
+Ferramentas de desenvolvimento e testes: `backend/.venv/Scripts/python -m pip install -e "backend[dev]"`.
 
 Modo desenvolvimento (API com recarga automática em :8000 e site em :5173):
 
@@ -142,5 +160,6 @@ A API documentada fica em <http://localhost:8000/api/docs>. Decisões técnicas,
 - **Review UI:** side-by-side with the original, highlight-on-select, crop tool, rich-text editing limited to exam formatting, undo/redo, autosave with offline recovery.
 - **Output:** a single layout engine — python-docx — produces the school-standard Word file; LibreOffice (or MS Word) converts it to PDF; the preview *is* that PDF, and automatic checks compare it with the model (missing/duplicated/reordered questions, margins, A4, orphaned question numbers).
 - **Delivery:** e-mail to the print room via SMTP (local outbox by default).
+- **Hosting:** one Docker image (API, web app, LibreOffice, Tesseract) behind Caddy on a free Oracle Cloud VM, PostgreSQL on Neon as the durable store (local disk is a cache, so ephemeral hosts work too), a shared school access code with signed cookies, and CI that builds and smoke-tests the image.
 - **Optional AI:** Gemini only suggests labels or character-level OCR fixes; responses are strictly validated and applied one by one after explicit consent.
 

@@ -24,7 +24,7 @@ flowchart LR
     M -.opcional, com consentimento.-> AI[Gemini<br/>só sugere]
 ```
 
-Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova é uma pasta em `data/projects/<uuid>/` — não há banco de dados.
+Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova é uma pasta em `data/projects/<uuid>/`; quando `DATABASE_URL` está definido, o PostgreSQL vira a cópia durável e a pasta passa a ser cache (ver [Armazenamento e tarefas](#7-armazenamento-e-tarefas)).
 
 | Módulo (`backend/app/`) | Responsabilidade |
 |---|---|
@@ -35,6 +35,8 @@ Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova
 | `rendering/` | Geração do DOCX (python-docx), conversão para PDF, prévias, verificações automáticas, fontes disponíveis. |
 | `mail/` | Montagem e envio do e-mail para a impressão. |
 | `ai/` | Assistente opcional (Gemini) com validação estrita das respostas. |
+| `persistence.py` | PostgreSQL (ou SQLite) opcional: projetos, arquivos essenciais e modelos de cabeçalho. |
+| `auth.py` | Código da escola, sessão assinada em cookie e limites de tentativas/envios. |
 | `api/`, `jobs.py`, `main.py` | Rotas HTTP, tarefas em segundo plano com progresso, app e arquivos estáticos. |
 
 No frontend (`frontend/src/`): `api/` (cliente e tipos espelhando o modelo), `store/` (estado da prova com desfazer/refazer e autosave), `lib/exam-ops.ts` (operações de edição puras e testadas), `pages/` (as quatro etapas e os modelos de cabeçalho) e `components/` (base acessível).
@@ -92,7 +94,13 @@ Desligada sem `GEMINI_API_KEY` (pacote `google-genai` é um extra opcional). Qua
 
 ### 7. Armazenamento e tarefas
 
-Sem banco: `project.json` com escrita atômica e trava por projeto, mais pastas de originais, páginas, recortes e renders. Extração e renderização rodam num pool de threads com progresso persistido (o usuário pode recarregar a página). Salvar a prova usa controle otimista por `revision` (conflito entre abas é detectado). O navegador guarda uma cópia local de alterações não salvas para recuperar após queda de conexão.
+Localmente não há banco: `project.json` com escrita atômica e trava por projeto, mais pastas de originais, páginas, recortes e renders.
+
+**No servidor** (`DATABASE_URL`), cada gravação do `project.json` também é gravada no PostgreSQL, e originais, imagens das páginas e recortes são espelhados após cada mudança (comparando tamanho e data). Na primeira vez que uma prova é aberta depois de um reinício — ou num host com disco efêmero — a pasta é reconstruída a partir do banco. PDFs, DOCX e prévias **não** vão para o banco: são refeitos a partir do modelo quando faltam. A limpeza por retenção apaga também do banco. Os modelos de cabeçalho e logotipos ficam no banco sem prazo. A conexão é única, reaberta automaticamente quando o Neon suspende o banco ocioso, e sem *prepared statements* (compatível com o pooler).
+
+**Acesso:** com `ACCESS_CODE`, todas as rotas da API (exceto saúde e login) exigem um cookie `HttpOnly` assinado com HMAC derivado do código — trocar o código desconecta todos. O código é comparado em tempo constante, sem diferenciar maiúsculas, acentos e espaços; tentativas erradas e envios por hora têm limite por IP.
+
+**Implantação:** uma imagem Docker (Node só no estágio de build; Python 3.12 + LibreOffice Writer sem interface + Tesseract com `por` do tessdata_best + fontes Liberation/Carlito, métricas iguais a Arial/Times/Calibri) atrás do Caddy, que emite o certificado HTTPS. O CI roda os testes, constrói a imagem e faz um teste de fumaça (saúde, OCR, PDF e código de acesso). Extração e renderização rodam num pool de threads com progresso persistido (o usuário pode recarregar a página). Salvar a prova usa controle otimista por `revision` (conflito entre abas é detectado). O navegador guarda uma cópia local de alterações não salvas para recuperar após queda de conexão.
 
 ## Modelo de dados (resumo)
 
@@ -120,6 +128,8 @@ Escolhidas pela licença permissiva, suporte a Windows sem compilação e docume
 | pytesseract, OpenCV (headless), NumPy, Pillow | pré-processamento e chamada do OCR | Apache-2.0 / BSD / HPND | — |
 | LibreOffice | DOCX → PDF | MPL-2.0 | Alternativa: Microsoft Word via pywin32 (só Windows). |
 | google-genai (opcional) | Gemini | Apache-2.0 | Modelo configurável (`GEMINI_MODEL`). |
+| psycopg 3 | PostgreSQL | LGPL-3.0 | Usado como biblioteca, sem modificações. |
+| Caddy | proxy reverso e HTTPS automático | Apache-2.0 | Só no servidor. |
 | React 19, React Router, Zustand | interface e estado | MIT | — |
 | TipTap 3 | edição rica limitada à formatação de prova | MIT | — |
 | dnd-kit, lucide-react | ordenar páginas, ícones | MIT / ISC | — |
@@ -133,12 +143,13 @@ Escolhidas pela licença permissiva, suporte a Windows sem compilação e docume
 - Cabeçalhos de segurança (`nosniff`, `no-referrer`, `SAMEORIGIN`) e `Cache-Control: no-store` nas respostas da API.
 - Logs com método, caminho (só ids), status e tempo — nunca conteúdo.
 - Retenção configurável com limpeza na inicialização e a cada hora.
-- Credenciais só no `.env` do servidor.
+- Credenciais só no `.env` do servidor (criado com permissão 600 pelo script).
+- Na internet: código da escola, cookies `HttpOnly`/`SameSite=Lax`/`Secure` sob HTTPS, HSTS no Caddy, limites de login e de envio.
 
-**Para hospedar:** adicionar autenticação (ex.: login da escola ou proxy com SSO), HTTPS, um container com LibreOffice + Tesseract (`apt install libreoffice-writer tesseract-ocr tesseract-ocr-por fonts-liberation`) e volume persistente para `data/templates`. A estrutura já permite isso sem mudanças no código.
+Hospedagem recomendada e passo a passo: [DEPLOY.md](DEPLOY.md).
 
 ## Testes
 
-- **Backend (pytest):** validação de envios; extração das provas sintéticas de `samples/` comparada com `expected.json` (nenhuma questão/alternativa perdida, duplicada ou fora de ordem; acentos e símbolos; formatação; imagem e tabela na questão certa; OCR com dúvidas sinalizadas; foto ilegível preservada como imagem); estruturação; DOCX gerado; PDF exportado em 1 e 2 colunas (A4, completo, em ordem, dentro das margens); e-mail via servidor SMTP local; IA com respostas simuladas maliciosas ou incompletas; fluxo completo da API até o e-mail.
+- **Backend (pytest):** persistência (restauração completa após apagar o disco, em SQLite e em PostgreSQL real via `pgserver`) e código de acesso; validação de envios; extração das provas sintéticas de `samples/` comparada com `expected.json` (nenhuma questão/alternativa perdida, duplicada ou fora de ordem; acentos e símbolos; formatação; imagem e tabela na questão certa; OCR com dúvidas sinalizadas; foto ilegível preservada como imagem); estruturação; DOCX gerado; PDF exportado em 1 e 2 colunas (A4, completo, em ordem, dentro das margens); e-mail via servidor SMTP local; IA com respostas simuladas maliciosas ou incompletas; fluxo completo da API até o e-mail.
 - **Frontend (Vitest):** operações de edição que não podem perder texto e conversão de formatação do editor.
 - **Manual:** fluxo completo no navegador (envio, conferência com correção, ajuste em 2 colunas, envio para a caixa de saída), em desktop e celular.
