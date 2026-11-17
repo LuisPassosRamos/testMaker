@@ -167,6 +167,9 @@ class DocxRenderer:
         self.text_height = 29.7 - margins.top - margins.bottom
         cols = self.layout.columns
         self.column_width = (self.text_width - COLUMN_GAP_CM) / 2 if cols == 2 else self.text_width
+        # Layout notes for the checks panel (e.g. an image reduced to fit the column).
+        self.notes: list[tuple[str, str]] = []  # (block id, message)
+        self._block: Block | None = None
 
     # ------------------------------------------------------------------ setup
     def _setup(self) -> None:
@@ -376,7 +379,16 @@ class DocxRenderer:
         self.doc.save(out_path)
         return out_path
 
+    def _block_label(self) -> str:
+        block = self._block
+        if block is None:
+            return "o documento"
+        if block.kind == "question":
+            return f"a questão {block.number or ''}".strip()
+        return "o texto de apoio" if block.kind == "support_text" else "um trecho"
+
     def _render_block(self, block: Block, first: bool) -> None:
+        self._block = block
         if block.kind == "page_break":
             p = self.doc.add_paragraph()
             p.add_run().add_break(WD_BREAK.PAGE)
@@ -458,7 +470,13 @@ class DocxRenderer:
                 return []
             avail = self.column_width - indent
             natural = part.width_cm or min(avail, 10.0)
-            width = self._fit_width(path, natural * part.width_pct / 100, avail)
+            wanted = natural * part.width_pct / 100
+            width = self._fit_width(path, wanted, avail)
+            if part.width_cm and part.width_cm >= 5 and width < wanted * 0.7:
+                what = "A tabela" if any(i.code == "table_as_crop" for i in part.issues) else "A imagem"
+                self.notes.append((self._block.id if self._block else "", (
+                    f"{what} em {self._block_label()} foi reduzida para {round(width / wanted * 100)}% para caber "
+                    "na página/coluna. Confira se ficou legível (com 1 coluna ela fica maior).")))
             p = self._paragraph(indent=indent, align="center")
             p.add_run().add_picture(str(path), width=Cm(width))
             return [p]

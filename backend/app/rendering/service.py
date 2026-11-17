@@ -59,8 +59,8 @@ def render_project(store: ProjectStore, templates: TemplateStore, settings: Sett
     out_dir.mkdir(parents=True, exist_ok=True)
     progress("docx", 0.1, "Montando o documento Word…")
     docx_path = out_dir / "prova.docx"
-    DocxRenderer(exam, template, store.assets_dir(pid), templates.logo_path(template), out_dir / "work").render(
-        docx_path)
+    renderer = DocxRenderer(exam, template, store.assets_dir(pid), templates.logo_path(template), out_dir / "work")
+    renderer.render(docx_path)
 
     progress("pdf", 0.35, "Gerando o PDF para impressão…")
     pdf_tmp = docx_to_pdf(docx_path, out_dir / "convert", settings)
@@ -85,6 +85,8 @@ def render_project(store: ProjectStore, templates: TemplateStore, settings: Sett
 
     progress("checks", 0.9, "Conferindo se nada ficou de fora…")
     checks = run_checks(exam, str(pdf_path))
+    checks += [CheckResult(code="image_reduced", severity="warning", message=message, block_id=block_id or None)
+               for block_id, message in renderer.notes]
     result = RenderResult(
         render_id=render_id, revision=project.revision, pages=count, checks=checks,
         docx_name=safe_filename(exam, "docx"), pdf_name=safe_filename(exam, "pdf"), created_at=time.time(),
