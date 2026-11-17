@@ -1,0 +1,135 @@
+{
+  "prova-matematica.docx": {
+    "questions": [
+      "1.",
+      "2.",
+      "3.",
+      "4.",
+      "5.",
+      "6."
+    ],
+    "alternatives": {
+      "1.": 4,
+      "2.": 4,
+      "3.": 4,
+      "4.": 0,
+      "5.": 4,
+      "6.": 4
+    },
+    "has_image": true,
+    "has_table": true,
+    "must_contain": [
+      "INCORRETA",
+      "π ≈ 3,14",
+      "√16 = 4",
+      "5 ≥ 3",
+      "2 ≤ 7",
+      "½ é maior que ¼"
+    ]
+  },
+  "atividade-portugues.docx": {
+    "questions": [
+      "01 –",
+      "02 –",
+      "03 –",
+      "04 –",
+      "05 –",
+      "06 –"
+    ],
+    "alternatives": {
+      "01 –": 0,
+      "02 –": 4,
+      "03 –": 3,
+      "04 –": 0,
+      "05 –": 4,
+      "06 –": 0
+    },
+    "must_contain": [
+      "NÃO",
+      "cigarra",
+      "1º",
+      "H₂O",
+      "pa__aro"
+    ]
+  },
+  "prova-matematica.pdf": {
+    "questions": [
+      "1.",
+      "2.",
+      "3.",
+      "4.",
+      "5.",
+      "6."
+    ],
+    "alternatives": {
+      "1.": 4,
+      "2.": 4,
+      "3.": 4,
+      "4.": 0,
+      "5.": 4,
+      "6.": 4
+    },
+    "has_image": true,
+    "has_table": true,
+    "must_contain": [
+      "INCORRETA",
+      "π ≈ 3,14",
+      "√16 = 4",
+      "5 ≥ 3",
+      "2 ≤ 7",
+      "½ é maior que ¼"
+    ]
+  },
+  "prova-digitalizada.pdf": {
+    "questions": [
+      "1.",
+      "2.",
+      "3.",
+      "4.",
+      "5.",
+      "6."
+    ],
+    "ocr": true
+  },
+  "revisao-ciencias-duas-colunas.pdf": {
+    "questions": [
+      "1)",
+      "2)",
+      "3)",
+      "4)",
+      "5)",
+      "6)",
+      "7)",
+      "8)",
+      "9)"
+    ],
+    "alternatives": {
+      "1)": 4,
+      "2)": 4,
+      "3)": 4,
+      "4)": 4,
+      "5)": 4,
+      "6)": 4,
+      "7)": 4,
+      "8)": 4,
+      "9)": 0
+    },
+    "two_columns": true,
+    "must_contain": [
+      "fotossíntese",
+      "100 °C",
+      "Oxigênio e glicose"
+    ]
+  },
+  "foto-pagina-1.jpg": {
+    "ocr": true,
+    "questions": [
+      "01 –",
+      "02 –"
+    ]
+  },
+  "foto-baixa-qualidade.jpg": {
+    "ocr": true,
+    "low_quality": true
+  }
+}
