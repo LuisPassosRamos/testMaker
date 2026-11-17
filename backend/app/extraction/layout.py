@@ -176,47 +176,66 @@ def detect_gutter(words: list[Word], page_width: float) -> tuple[float, float] |
     if len(words) < 40:
         return None
     bins = 200
-    # Count, for each vertical strip, how many text lines cross it. A gutter is crossed only by
-    # the few full-width lines (title, header table), so this works even below a wide header.
     lines = group_lines(words, 0)
-    coverage = [0] * bins
+    covered: list[set[int]] = []
     for line in lines:
         hit: set[int] = set()
         for w in line.words:
             start = max(0, int(w.x0 / page_width * bins))
             end = min(bins - 1, int(w.x1 / page_width * bins))
             hit.update(range(start, end + 1))
-        for b in hit:
-            coverage[b] += 1
+        covered.append(hit)
+    # A real gutter stays empty over a long, uninterrupted run of lines; areas next to short
+    # lines are only sparse (a long sentence crosses them sooner or later). Header lines above
+    # the columns just end the run, so wide headers do not hide the gutter.
     lo, hi = int(bins * 0.3), int(bins * 0.7)
-    floor = min(coverage[lo:hi + 1])
-    if floor > len(lines) * 0.22:
+    longest = [0] * bins
+    for b in range(lo, hi + 1):
+        run = best = 0
+        for hit in covered:
+            run = 0 if b in hit else run + 1
+            best = max(best, run)
+        longest[b] = best
+    peak = max(longest[lo:hi + 1])
+    if peak < max(8, len(lines) * 0.35):
         return None
-    # The gutter is the emptiest band, not merely a sparse one (short lines leave sparse areas).
-    threshold = floor + max(1, int(len(lines) * 0.03))
     best: tuple[int, int] | None = None
     run_start = None
-    for b in range(lo, hi + 1):
-        empty = coverage[b] <= threshold
-        if empty and run_start is None:
+    for b in range(lo, hi + 2):
+        good = b <= hi and longest[b] >= peak * 0.9
+        if good and run_start is None:
             run_start = b
-        if (not empty or b == hi) and run_start is not None:
-            run_end = b if empty else b - 1
-            if best is None or run_end - run_start > best[1] - best[0]:
-                best = (run_start, run_end)
+        elif not good and run_start is not None:
+            if best is None or (b - 1 - run_start) > (best[1] - best[0]):
+                best = (run_start, b - 1)
             run_start = None
     if best is None or best[1] - best[0] + 1 < 3:
         return None
     g0 = best[0] / bins * page_width
     g1 = (best[1] + 1) / bins * page_width
+    gmid = (g0 + g1) / 2
     left = [w for w in words if w.x1 <= g0]
     right = [w for w in words if w.x0 >= g1]
     if len(left) < len(words) * 0.15 or len(right) < len(words) * 0.15:
         return None
-    # Both columns must share vertical space (otherwise it is just indentation).
-    left_rows = {int(w.top // 10) for w in left}
-    right_rows = {int(w.top // 10) for w in right}
-    if len(left_rows & right_rows) < 5:
+    # Validate: there must be real text on both sides (lines living only in the right half are
+    # rare in single-column exams) and column lines must outnumber sentences crossing the band.
+    split = crossing = left_only = right_only = 0
+    for line in lines:
+        lw = [w for w in line.words if w.x1 <= gmid]
+        rw = [w for w in line.words if w.x0 >= gmid]
+        if any(w.x0 < gmid < w.x1 for w in line.words):
+            crossing += 1
+        elif lw and rw:
+            if rw[0].x0 - lw[-1].x1 >= max(w.height for w in line.words) * 1.2:
+                split += 1
+            else:
+                crossing += 1
+        elif lw:
+            left_only += 1
+        elif rw:
+            right_only += 1
+    if right_only + split < 5 or left_only + split < 5 or left_only + right_only + split < crossing * 1.5:
         return None
     return g0, g1
 
