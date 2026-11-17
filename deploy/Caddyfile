@@ -1,0 +1,15 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	# Uploads of up to 30 photos/files per exam.
+	request_body {
+		max_size 200MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+	}
+	reverse_proxy app:8000 {
+		transport http {
+			read_timeout 10m
+		}
+	}
+}

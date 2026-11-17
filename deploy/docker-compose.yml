@@ -1,0 +1,36 @@
+# Prova Pronta on a single server (e.g. Oracle Cloud Always Free VM).
+# Caddy serves https://SITE_ADDRESS with an automatic Let's Encrypt certificate.
+# Usage (from this folder):  docker compose up -d --build
+services:
+  app:
+    build:
+      context: ..
+    image: prova-pronta:latest
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - app-data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.9
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Defina SITE_ADDRESS no arquivo .env (ex.: provamadre.duckdns.org)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:

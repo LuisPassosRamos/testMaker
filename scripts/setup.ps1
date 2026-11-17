@@ -54,7 +54,7 @@ if (-not (Test-Path $venvPython)) {
     & $python[0] @pyArgs
 }
 & $venvPython -m pip install --upgrade pip --quiet
-& $venvPython -m pip install --quiet -e "backend[dev,ai]"
+& $venvPython -m pip install --quiet -e "backend[ai]"
 Ok 'Dependências do backend instaladas'
 
 Step 'Baixando os dados de OCR em português'

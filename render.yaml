@@ -1,0 +1,25 @@
+# Alternative host: Render (Blueprint). Simple to start, but the free plan sleeps after
+# 15 minutes and has 0.1 CPU / 512 MB, which makes OCR and PDF generation slow; the
+# Starter plan removes the sleep. Data lives in the external database (DATABASE_URL).
+services:
+  - type: web
+    name: provamadre
+    runtime: docker
+    plan: free
+    region: virginia
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ACCESS_CODE
+        sync: false
+      - key: MAIL_MODE
+        value: smtp
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: JOB_WORKERS
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false

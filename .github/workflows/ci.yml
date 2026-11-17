@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System tools (LibreOffice, Tesseract, fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer-nogui tesseract-ocr tesseract-ocr-por \
+            tesseract-ocr-osd fonts-liberation fonts-crosextra-carlito
+      - name: Portuguese OCR model (same tessdata_best as local installs and the image)
+        run: |
+          mkdir -p backend/vendor/tessdata
+          curl -fsSL -o backend/vendor/tessdata/por.traineddata https://github.com/tesseract-ocr/tessdata_best/raw/main/por.traineddata
+          cp /usr/share/tesseract-ocr/5/tessdata/{eng,osd}.traineddata backend/vendor/tessdata/
+      - name: Install
+        run: pip install -e "backend[dev]"
+      - name: Lint
+        run: ruff check backend/app backend/tests
+      - name: Test
+        working-directory: backend
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p tsconfig.json
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    runs-on: ubuntu-24.04
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t prova-pronta:ci .
+      - name: Smoke test (health, OCR, PDF, school code)
+        run: |
+          docker run -d --name pp -p 8000:8000 -e ACCESS_CODE=ci-code prova-pronta:ci
+          for i in $(seq 1 60); do curl -fs http://localhost:8000/api/health > health.json && break; sleep 2; done
+          cat health.json
+          python3 - <<'PY'
+          import json
+          health = json.load(open("health.json"))
+          assert health["converter"]["available"], health
+          assert health["ocr"]["available"], health
+          assert health["access"]["required"], health
+          PY
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/api/projects -H 'Content-Type: application/json' -d '{}')" = "401"
+          curl -fs -c cookies -X POST http://localhost:8000/api/auth/login -H 'Content-Type: application/json' -d '{"code":"CI code"}'
+          pid=$(curl -fs -b cookies -X POST http://localhost:8000/api/projects -H 'Content-Type: application/json' -d '{"start_mode":"paste"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fs -b cookies -X POST "http://localhost:8000/api/projects/$pid/paste" -H 'Content-Type: application/json' \
+            -d '{"paragraphs":[[{"text":"1) Quanto é 2 + 2?"}],[{"text":"a) 3"}],[{"text":"b) 4"}]]}' > /dev/null
+          curl -fs -b cookies -X POST "http://localhost:8000/api/projects/$pid/render" > /dev/null
+          for i in $(seq 1 60); do
+            status=$(curl -fs -b cookies "http://localhost:8000/api/projects/$pid/job" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+            [ "$status" = done ] && break; [ "$status" = failed ] && exit 1; sleep 2
+          done
+          rid=$(curl -fs -b cookies "http://localhost:8000/api/projects/$pid/render" | python3 -c 'import json,sys; print(json.load(sys.stdin)["render"]["render_id"])')
+          curl -fs -b cookies -o prova.pdf "http://localhost:8000/api/projects/$pid/renders/$rid/download/pdf"
+          head -c 5 prova.pdf | grep -q '%PDF'
+      - name: Logs on failure
+        if: failure()
+        run: docker logs pp || true
