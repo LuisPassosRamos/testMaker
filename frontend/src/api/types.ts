@@ -236,6 +236,8 @@ export interface Health {
   converter: { available: boolean; engine: string | null; message: string }
   ocr: { available: boolean; version: string | null; message: string }
   ai: { enabled: boolean; model: string | null }
+  database: { configured: boolean; ok: boolean | null }
+  access: { required: boolean }
   mail: { mode: 'outbox' | 'smtp'; to: string }
   limits: { max_upload_mb: number; max_files: number; max_pdf_pages: number; retention_hours: number }
 }

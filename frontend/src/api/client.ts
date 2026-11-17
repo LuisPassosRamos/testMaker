@@ -40,6 +40,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const data = await res.json().catch(() => null)
   if (!res.ok) {
     const detail = data?.detail
+    if (res.status === 401 && detail?.code === 'auth_required') {
+      // The session expired or the school changed its code: show the login screen again.
+      window.dispatchEvent(new CustomEvent('pp:auth-required'))
+    }
     if (detail && typeof detail === 'object' && 'message' in detail) {
       throw new ApiError(res.status, detail.code ?? 'error', detail.message)
     }
@@ -51,6 +55,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const json = (body: unknown) => JSON.stringify(body)
 
 export const api = {
+  authStatus: () => request<{ required: boolean; authenticated: boolean }>('/api/auth/status'),
+  login: (code: string) => request<{ authenticated: boolean }>('/api/auth/login', { method: 'POST', body: json({ code }) }),
+  logout: () => request<{ authenticated: boolean }>('/api/auth/logout', { method: 'POST' }),
   health: () => request<Health>('/api/health'),
   fonts: () => request<FontOption[]>('/api/fonts'),
 

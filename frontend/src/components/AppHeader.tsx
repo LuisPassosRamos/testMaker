@@ -1,8 +1,8 @@
-import { FileText, Home, LayoutTemplate } from 'lucide-react'
+import { FileText, Home, LayoutTemplate, LogOut } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cx } from './ui'
 
-export function AppHeader() {
+export function AppHeader({ onSignOut }: { onSignOut?: () => void }) {
   const link = ({ isActive }: { isActive: boolean }) =>
     cx(
       'inline-flex min-h-11 items-center gap-2 rounded-xl px-3 font-bold transition-colors',
@@ -30,6 +30,16 @@ export function AppHeader() {
           <NavLink to="/modelos" className={link}>
             <LayoutTemplate className="size-5" aria-hidden /> Modelos de cabeçalho
           </NavLink>
+          {onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 font-bold text-brand-100 hover:bg-white/10 hover:text-white"
+              title="Sair deste aparelho (será preciso digitar o código de novo)"
+            >
+              <LogOut className="size-5" aria-hidden /> Sair
+            </button>
+          )}
           <a href="/api/docs" className="sr-only">
             <FileText aria-hidden /> Documentação da API
           </a>
