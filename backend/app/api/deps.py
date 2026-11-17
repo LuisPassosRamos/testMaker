@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import HTTPException, Request
 
+from app.auth import RateLimiter
 from app.config import Settings
 from app.domain.models import Project
 from app.importing.storage import ProjectNotFound, ProjectStore
 from app.jobs import JobRunner
+from app.persistence import Database
 from app.templates_store import TemplateStore
 
 
@@ -19,6 +21,8 @@ class Services:
     store: ProjectStore
     templates: TemplateStore
     jobs: JobRunner
+    db: Database | None = None
+    limiter: RateLimiter = field(default_factory=RateLimiter)
 
 
 def services(request: Request) -> Services:

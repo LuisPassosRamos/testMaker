@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     # Storage and retention
     data_dir: Path = REPO_DIR / "data"
+    # PostgreSQL (e.g. a free Neon database) makes projects and templates survive restarts and
+    # ephemeral disks; the local folder then works as a cache. Empty = local files only.
+    database_url: SecretStr | None = None
     retention_hours: int = Field(72, ge=1, description="Projects untouched for longer are deleted.")
 
     # Upload limits (uploaded files are treated as untrusted input)
@@ -62,6 +65,13 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.6-flash"
     gemini_timeout_s: int = 90
 
+    # Access: when set, teachers type this school code once per device before using the app.
+    access_code: SecretStr | None = None
+    session_days: int = Field(60, ge=1, le=400)
+    max_sends_per_hour: int = Field(20, ge=1, le=500)
+    # Parallel background jobs (OCR, PDF). Use 1 on hosts with 512 MB of RAM.
+    job_workers: int = Field(2, ge=1, le=8)
+
     # Web
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     frontend_dist: Path = REPO_DIR / "frontend" / "dist"
@@ -82,6 +92,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def access_required(self) -> bool:
+        return bool(self.access_code and self.access_code.get_secret_value().strip())
 
     @property
     def ai_enabled(self) -> bool:

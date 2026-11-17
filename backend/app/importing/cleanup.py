@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from app.config import Settings
+from app.persistence import Database
 
 log = logging.getLogger(__name__)
 
@@ -22,10 +23,18 @@ def _last_touch(path: Path) -> float:
     return target.stat().st_mtime
 
 
-def cleanup_expired(settings: Settings, now: float | None = None) -> int:
+def cleanup_expired(settings: Settings, now: float | None = None, db: Database | None = None) -> int:
     now = now or time.time()
     limit = settings.retention_hours * 3600
     removed = 0
+    if db is not None:
+        try:
+            for pid in db.expired_projects(now - limit):
+                db.delete_project(pid)
+                shutil.rmtree(settings.projects_dir / pid, ignore_errors=True)
+                removed += 1
+        except Exception:
+            log.warning("cleanup: database not reachable, will try again later")
     projects = settings.projects_dir
     if projects.exists():
         for child in projects.iterdir():

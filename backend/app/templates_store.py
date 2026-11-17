@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.config import BACKEND_DIR, Settings
+from app.persistence import Database
 
 FieldKey = Literal["aluno", "numero", "professor", "disciplina", "ano_turma", "turno", "unidade", "data", "nota",
                    "valor", "data_entrega"]
@@ -37,6 +38,7 @@ FIELD_LABELS: dict[str, str] = {
 
 DEFAULT_LOGO = BACKEND_DIR / "app" / "assets" / "logo-madre.png"
 _ID = re.compile(r"^[a-z0-9-]{3,40}$")
+_LOGO = re.compile(r"^[a-z0-9-]{3,40}-[0-9a-f]{6}\.png$")
 
 
 class HeaderField(BaseModel):
@@ -83,13 +85,31 @@ def builtin_template() -> HeaderTemplate:
     )
 
 
+_DB_KEY = "header_templates"
+_DB_OWNER = "_templates"
+
+
 class TemplateStore:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, db: Database | None = None):
         self.dir = settings.templates_dir
         self.logos = self.dir / "logos"
         self.logos.mkdir(parents=True, exist_ok=True)
         self.file = self.dir / "templates.json"
         self._lock = threading.Lock()
+        self.db = db
+        if db is not None:
+            self._restore()
+
+    def _restore(self) -> None:
+        """Templates are school configuration: the database copy wins over the local cache."""
+        assert self.db is not None
+        data = self.db.get_setting(_DB_KEY)
+        if data:
+            self.file.write_text(data, encoding="utf-8")
+        for rel, content, _mtime in self.db.iter_files(_DB_OWNER):
+            name = rel.split("/")[-1]
+            if _LOGO.match(name):
+                (self.logos / name).write_bytes(content)
 
     def _read(self) -> list[HeaderTemplate]:
         if not self.file.exists():
@@ -101,9 +121,12 @@ class TemplateStore:
         return templates
 
     def _write(self, templates: list[HeaderTemplate]) -> None:
+        data = json.dumps([t.model_dump() for t in templates], ensure_ascii=False, indent=2)
         tmp = self.file.with_suffix(".tmp")
-        tmp.write_text(json.dumps([t.model_dump() for t in templates], ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.write_text(data, encoding="utf-8")
         tmp.replace(self.file)
+        if self.db is not None:
+            self.db.put_setting(_DB_KEY, data)
 
     def list(self) -> list[HeaderTemplate]:
         with self._lock:
@@ -150,4 +173,6 @@ class TemplateStore:
     def save_logo(self, template_id: str, png_bytes: bytes) -> str:
         name = f"{template_id}-{secrets.token_hex(3)}.png"
         (self.logos / name).write_bytes(png_bytes)
+        if self.db is not None:
+            self.db.put_file(_DB_OWNER, f"logos/{name}", png_bytes, 0.0)
         return name

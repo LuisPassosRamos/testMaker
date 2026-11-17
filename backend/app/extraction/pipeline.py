@@ -97,6 +97,7 @@ class ExtractionPipeline:
             p.exam.document_issues = doc_issues + result.issues
 
         self.store.mutate(pid, apply)
+        self.store.sync_files(pid)
 
     # --------------------------------------------------------------- sources
     def _extract_source(self, pid: str, source: SourceFile, progress: Progress, multi: bool):
@@ -232,9 +233,9 @@ class ExtractionPipeline:
         pages_dir = self.store.pages_dir(pid)
         status = ocr_status(self.settings)
         name = f"{source.id}-p{page_no}.jpg"
-        full = f"{source.id}-p{page_no}-full.png"
+        full = f"{source.id}-p{page_no}-full.jpg"
         if not status.available:
-            image.save(pages_dir / full, format="PNG")
+            image.save(pages_dir / full, format="JPEG", quality=92)
             w, h = _save_preview(image, pages_dir / name)
             asset = self.store.save_asset_image(pid, image)
             media = MediaItem(
@@ -253,7 +254,7 @@ class ExtractionPipeline:
                               save_crop=self._save_crop(pid))
         except (OcrUnavailable, RuntimeError) as exc:
             log.warning("ocr failed on page %d: %s", page_no, exc.__class__.__name__)
-            image.save(pages_dir / full, format="PNG")
+            image.save(pages_dir / full, format="JPEG", quality=92)
             w, h = _save_preview(image, pages_dir / name)
             asset = self.store.save_asset_image(pid, image)
             media = MediaItem(
@@ -264,7 +265,7 @@ class ExtractionPipeline:
             )
             return [media], [], SourcePage(index=page_no, image=name, full_image=full, width=w, height=h,
                                            method="failed")
-        result.display_image.save(pages_dir / full, format="PNG")
+        result.display_image.convert("RGB").save(pages_dir / full, format="JPEG", quality=92)
         w, h = _save_preview(result.display_image, pages_dir / name)
         page = SourcePage(index=page_no, image=name, full_image=full, width=w, height=h, method="ocr",
                           note=f"confiança média {result.mean_confidence:.0f}%" if result.mean_confidence else None)

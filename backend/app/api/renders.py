@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -87,8 +87,14 @@ def download(pid: str, rid: str, kind: Literal["pdf", "docx"], inline: bool = Fa
 
 
 @router.post("/{pid}/send")
-def send_to_print(pid: str, body: SendRequest, svc: Services = Depends(services)) -> dict:
+def send_to_print(pid: str, body: SendRequest, request: Request, svc: Services = Depends(services)) -> dict:
     project = load_project(svc, pid)
+    client = request.client.host if request.client else "?"
+    limiter = svc.limiter
+    if not limiter.allow(f"send:{client}", svc.settings.max_sends_per_hour, 3600) or not limiter.allow(
+            f"send-project:{pid}", 6, 3600):
+        raise api_error(429, "too_many_sends",
+                        "Muitos envios em pouco tempo. Aguarde um pouco ou fale com a secretaria.")
     result = load_render(svc.store, pid, body.render_id)
     if result is None:
         raise api_error(404, "render_not_found", "Gere a prévia antes de enviar.")

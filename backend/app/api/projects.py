@@ -137,6 +137,7 @@ async def upload_sources(pid: str, files: list[UploadFile] = File(...), svc: Ser
         accepted.append(svc.store.add_source(pid, valid))
         room -= 1
     project = svc.store.mutate(pid, lambda p: p.sources.extend(accepted))
+    svc.store.sync_files(pid)
     return {"project": project.model_dump(mode="json"), "rejected": rejected}
 
 
@@ -156,7 +157,9 @@ def delete_source(pid: str, sid: str, svc: Services = Depends(services)) -> Proj
     if source is None:
         raise api_error(404, "source_not_found", "Arquivo não encontrado.")
     svc.store.source_path(pid, source).unlink(missing_ok=True)
-    return svc.store.mutate(pid, lambda p: setattr(p, "sources", [s for s in p.sources if s.id != sid]))
+    project = svc.store.mutate(pid, lambda p: setattr(p, "sources", [s for s in p.sources if s.id != sid]))
+    svc.store.sync_files(pid)
+    return project
 
 
 @router.post("/{pid}/extract", response_model=JobState)
@@ -249,6 +252,7 @@ async def upload_asset(pid: str, file: UploadFile = File(...), svc: Services = D
     if valid.kind != "image":
         raise api_error(400, "not_image", "Envie uma imagem (JPG ou PNG).")
     asset_id = svc.store.save_asset_bytes(pid, valid.data)
+    svc.store.sync_files(pid)
     with Image.open(io.BytesIO(valid.data)) as img:
         width = _width_cm(img)
     return {"asset_id": asset_id, "width_cm": width}
@@ -267,6 +271,7 @@ def crop_original(pid: str, body: CropRequest, svc: Services = Depends(services)
     except FileNotFoundError as exc:
         raise api_error(404, "page_not_found", "Página do original não encontrada.") from exc
     asset_id = svc.store.save_asset_image(pid, crop)
+    svc.store.sync_files(pid)
     # Originals are A4 pages: a crop keeps the printed width it had on paper.
     width_cm = round(min(18.0, (body.bbox[2] - body.bbox[0]) * 21.0), 2)
     return {"asset_id": asset_id, "width_cm": width_cm}

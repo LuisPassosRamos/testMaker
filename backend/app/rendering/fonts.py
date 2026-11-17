@@ -13,6 +13,13 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
+# Linux servers use metric-compatible open fonts under the familiar names (same line breaks).
+LINUX_ALIASES = {
+    "Arial": ["Arial", "Liberation Sans"],
+    "Times New Roman": ["Times New Roman", "Liberation Serif"],
+    "Calibri": ["Calibri", "Carlito"],
+}
+
 CANDIDATES: list[tuple[str, list[str], str]] = [
     ("Arial", ["arial.ttf", "LiberationSans-Regular.ttf"], "Clara e econômica"),
     ("Calibri", ["calibri.ttf", "Carlito-Regular.ttf"], "Moderna, padrão do Word"),
@@ -38,8 +45,9 @@ def available_fonts() -> list[dict[str, str]]:
             listing = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True, timeout=10).stdout
         except (OSError, subprocess.SubprocessError):
             listing = ""
+        families = {f.strip().lower() for line in listing.splitlines() for f in line.split(",")}
         for name, _, _ in CANDIDATES:
-            if name.lower() in listing.lower():
+            if any(alias.lower() in families for alias in LINUX_ALIASES.get(name, [name])):
                 found.add(name)
     if not found:
         found.add("Arial")

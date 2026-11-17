@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import re
 import secrets
@@ -31,6 +32,9 @@ from PIL import Image
 from app.config import Settings
 from app.domain.models import ExamMeta, Project, SourceFile, utcnow
 from app.importing.validation import ValidatedFile
+from app.persistence import Database
+
+log = logging.getLogger(__name__)
 
 _PROJECT_ID = re.compile(r"^[0-9a-f]{32}$")
 _ASSET_ID = re.compile(r"^[0-9a-f]{16}\.(png|jpg)$")
@@ -47,9 +51,14 @@ class RevisionConflict(Exception):
         self.current = current
 
 
+# Folders mirrored to the database; renders are rebuilt on demand and never stored.
+PERSISTED_DIRS = ("sources", "pages", "assets")
+
+
 class ProjectStore:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, db: Database | None = None):
         self.settings = settings
+        self.db = db
         self.root = settings.projects_dir
         self.root.mkdir(parents=True, exist_ok=True)
         self._locks: dict[str, threading.RLock] = {}
@@ -103,14 +112,17 @@ class ProjectStore:
 
     def exists(self, pid: str) -> bool:
         try:
-            return (self.project_dir(pid) / "project.json").is_file()
+            path = self.project_dir(pid) / "project.json"
         except ProjectNotFound:
             return False
+        return path.is_file() or bool(self.db and self.db.get_project(pid) is not None)
 
     def load(self, pid: str) -> Project:
         path = self.project_dir(pid) / "project.json"
         if not path.is_file():
-            raise ProjectNotFound(pid)
+            with self.lock(pid):
+                if not path.is_file() and not self._restore(pid):
+                    raise ProjectNotFound(pid)
         return Project.model_validate_json(path.read_text(encoding="utf-8"))
 
     def save(self, project: Project, *, bump: bool = True) -> Project:
@@ -130,12 +142,70 @@ class ProjectStore:
 
     def delete(self, pid: str) -> None:
         shutil.rmtree(self.project_dir(pid), ignore_errors=True)
+        if self.db:
+            self.db.delete_project(pid)
 
     def _write(self, project: Project) -> None:
         path = self.project_dir(project.id) / "project.json"
+        data = project.model_dump_json()
         tmp = path.with_suffix(f".{secrets.token_hex(3)}.tmp")
-        tmp.write_text(project.model_dump_json(), encoding="utf-8")
+        tmp.write_text(data, encoding="utf-8")
         os.replace(tmp, path)
+        if self.db:
+            self.db.save_project(project.id, data, project.updated_at.timestamp())
+
+    # ------------------------------------------------------------- database
+    def _restore(self, pid: str) -> bool:
+        """Rebuild a project folder from the database (after a restart or on an ephemeral disk)."""
+        if not self.db:
+            return False
+        data = self.db.get_project(pid)
+        if data is None:
+            return False
+        base = self.project_dir(pid)
+        for sub in (*PERSISTED_DIRS, "renders"):
+            (base / sub).mkdir(parents=True, exist_ok=True)
+        for rel, content, mtime in self.db.iter_files(pid):
+            target = self._mirror_path(base, rel)
+            if target is None:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            os.utime(target, (mtime, mtime))
+        (base / "project.json").write_text(data, encoding="utf-8")
+        log.info("project %s restored from the database", pid)
+        return True
+
+    @staticmethod
+    def _mirror_path(base: Path, rel: str) -> Path | None:
+        parts = rel.split("/")
+        if len(parts) != 2 or parts[0] not in PERSISTED_DIRS or not _SAFE_NAME.match(parts[1]) or ".." in parts[1]:
+            return None
+        return base / parts[0] / parts[1]
+
+    def sync_files(self, pid: str) -> None:
+        """Mirror originals, page images and crops to the database (no-op without one)."""
+        if not self.db:
+            return
+        base = self.project_dir(pid)
+        remote = self.db.file_manifest(pid)
+        local: set[str] = set()
+        for sub in PERSISTED_DIRS:
+            folder = base / sub
+            if not folder.is_dir():
+                continue
+            for file in folder.iterdir():
+                if not file.is_file() or file.suffix == ".tmp":
+                    continue
+                rel = f"{sub}/{file.name}"
+                local.add(rel)
+                stat = file.stat()
+                known = remote.get(rel)
+                if known and known[0] == stat.st_size and abs(known[1] - stat.st_mtime) < 0.001:
+                    continue
+                self.db.put_file(pid, rel, file.read_bytes(), stat.st_mtime)
+        for rel in set(remote) - local:
+            self.db.delete_file(pid, rel)
 
     # ------------------------------------------------------------------ files
     def add_source(self, pid: str, file: ValidatedFile) -> SourceFile:
@@ -174,6 +244,10 @@ class ProjectStore:
 
     def list_ids(self) -> list[str]:
         return [p.name for p in self.root.iterdir() if p.is_dir() and _PROJECT_ID.match(p.name)]
+
+    def forget_local(self, pid: str) -> None:
+        """Drop the local cache of a project (it stays in the database)."""
+        shutil.rmtree(self.project_dir(pid), ignore_errors=True)
 
 
 def write_json(path: Path, payload: object) -> None:

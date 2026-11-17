@@ -28,8 +28,8 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(data_dir=tmp_path / "data", mail_mode="outbox", gemini_api_key=None,
-                    frontend_dist=tmp_path / "no-frontend")
+    return Settings(data_dir=tmp_path / "data", mail_mode="outbox", gemini_api_key=None, database_url=None,
+                    access_code=None, frontend_dist=tmp_path / "no-frontend")
 
 
 @pytest.fixture
