@@ -1,4 +1,4 @@
-import type { BlockKind, DocType, Severity } from '../api/types'
+import type { BlockKind, DocType, Modalidade, Periodo, Severity } from '../api/types'
 
 export const DOC_TYPES: Record<DocType, { label: string; title: string; description: string }> = {
   prova: { label: 'Prova', title: 'Prova', description: 'Avaliação com nota, aplicada em sala.' },
@@ -21,13 +21,14 @@ export const SEVERITY: Record<Severity, { label: string }> = {
   info: { label: 'Aviso' },
 }
 
+// Names as the school writes them in exam titles ("Avaliação II Trimestre - Português 2º ano").
 export const DISCIPLINAS = [
-  'Língua Portuguesa',
+  'Português',
   'Matemática',
   'Ciências',
   'História',
   'Geografia',
-  'Língua Inglesa',
+  'Inglês',
   'Arte',
   'Educação Física',
   'Ensino Religioso',
@@ -38,12 +39,56 @@ export const ANOS = ['1º ano', '2º ano', '3º ano', '4º ano', '5º ano', '6º
 export const TURNOS = ['Matutino', 'Vespertino', 'Noturno', 'Integral']
 export const UNIDADES = ['I', 'II', 'III', 'IV']
 
-export function examTitle(meta: { doc_type: DocType; disciplina: string; ano: string; turma: string }): string {
-  const kind = DOC_TYPES[meta.doc_type]?.label ?? 'Prova'
-  const parts = [meta.disciplina ? `${kind} de ${meta.disciplina}` : kind]
-  const turma = `${meta.ano} ${meta.turma}`.trim()
-  if (turma) parts.push(turma)
-  return parts.join(' · ')
+export const PERIODOS: Record<Periodo, string> = { unidade: 'Unidade', trimestre: 'Trimestre', periodo: 'Período' }
+
+/** One list for the period select: "I Unidade" … "III Trimestre" … "II Período". */
+export const PERIOD_OPTIONS: { value: string; label: string; unidade: string; periodo: Periodo }[] = (
+  [
+    ['unidade', ['I', 'II', 'III', 'IV']],
+    ['trimestre', ['I', 'II', 'III']],
+    ['periodo', ['I', 'II', 'III', 'IV']],
+  ] as [Periodo, string[]][]
+).flatMap(([periodo, numerals]) =>
+  numerals.map((n) => ({ value: `${n}|${periodo}`, label: `${n} ${PERIODOS[periodo]}`, unidade: n, periodo })),
+)
+
+export const MODALIDADES: Record<Modalidade, { label: string; word: string }> = {
+  regular: { label: 'Avaliação regular', word: '' },
+  final: { label: 'Avaliação final', word: 'Final' },
+  parcial: { label: 'Parcial', word: 'Parcial' },
+  recuperacao: { label: 'Recuperação', word: 'de Recuperação' },
+  segunda_chamada: { label: 'Segunda chamada', word: 'de Segunda Chamada' },
+  simulado: { label: 'Simulado', word: '' },
+}
+
+export const MENSAGENS_FINAIS = ['Boa prova!', 'Você consegue!', 'Você é capaz!!', 'Eu acredito em você!']
+
+/** Same rule as the backend (docx_writer.header_title): the title printed on the exam. */
+export function examTitle(meta: {
+  doc_type: DocType
+  disciplina: string
+  ano: string
+  title?: string
+  modalidade?: Modalidade
+  unidade?: string
+  periodo?: Periodo
+}): string {
+  if (meta.title?.trim()) return meta.title.trim()
+  const words: string[] = []
+  if (meta.doc_type === 'prova') {
+    words.push(meta.modalidade === 'simulado' ? 'Simulado' : 'Avaliação')
+    const word = MODALIDADES[meta.modalidade ?? 'regular']?.word
+    if (word) words.push(word)
+  } else {
+    words.push(DOC_TYPES[meta.doc_type]?.label ?? 'Atividade')
+  }
+  const unidade = meta.unidade?.trim()
+  if (unidade) {
+    words.push(/unidade|trimestre|bimestre|per[íi]odo|semestre/i.test(unidade) ? unidade : `${unidade} ${PERIODOS[meta.periodo ?? 'unidade']}`)
+  }
+  const right = [meta.disciplina.trim(), meta.ano.trim()].filter(Boolean).join(' ')
+  const title = right ? `${words.join(' ')} - ${right}` : words.join(' ')
+  return /^\s*1\s*[ºo°]/.test(meta.ano) ? title.toUpperCase() : title
 }
 
 export function formatDateBR(iso: string): string {

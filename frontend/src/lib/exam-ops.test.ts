@@ -28,7 +28,7 @@ function exam(): Exam {
   })
   const q2 = makeBlock('question', { number: '2)', parts: [makePart('paragraph', { runs: [{ text: 'Explique.' }] })] })
   return {
-    meta: { doc_type: 'prova', title: '', disciplina: '', unidade: '', ano: '', turma: '', turno: '', professor: '', data: '', valor: '', data_entrega: '' },
+    meta: { doc_type: 'prova', title: '', modalidade: 'regular', disciplina: '', unidade: '', periodo: 'unidade', ano: '', turma: '', turno: '', professor: '', data: '', valor: '', data_entrega: '', mensagem_final: '' },
     blocks: [q1, q2],
     layout: {} as Exam['layout'],
     header: { mode: 'template', template_id: 'padrao-madre' },
@@ -119,5 +119,6 @@ describe('exam operations keep every piece of text', () => {
 
   it('suggests the next question number from the ones before', () => {
     expect(nextQuestionNumber(exam())).toBe('3)')
+    expect(nextQuestionNumber({ ...exam(), blocks: [] })).toBe('1.')
   })
 })

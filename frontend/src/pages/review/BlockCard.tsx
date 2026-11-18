@@ -21,10 +21,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api, urls } from '../../api/client'
-import type { Block, BlockKind, Issue, Part } from '../../api/types'
+import type { AlternativesLayout, Block, BlockKind, Issue, Part } from '../../api/types'
 import { confirmDialog } from '../../components/Dialog'
 import { toast } from '../../components/Toast'
-import { Badge, Button, IconButton, Select, Toggle, cx, inputBase } from '../../components/ui'
+import { Badge, Button, IconButton, Segmented, Select, Toggle, cx, inputBase } from '../../components/ui'
 import {
   changeBlockKind,
   deleteBlock,
@@ -52,6 +52,12 @@ import { useExamStore } from '../../store/examStore'
 import { AnswerSpaceEditor } from './AnswerSpaceEditor'
 import { RichTextEditor } from './RichTextEditor'
 import { RunsView } from './RunsView'
+
+const ALTERNATIVE_LAYOUTS: { value: AlternativesLayout; label: string }[] = [
+  { value: 'auto', label: 'Automático (lado a lado se couber)' },
+  { value: 'list', label: 'Uma por linha' },
+  { value: 'row', label: 'Todas na mesma linha' },
+]
 
 const ISSUE_STYLE = {
   error: { box: 'border-rose-300 bg-rose-50 text-rose-950', icon: <XCircle className="size-4 shrink-0 text-rose-700" aria-hidden /> },
@@ -583,17 +589,20 @@ export function BlockCard({ block, index, total, targets, projectId, onRequestCr
               }
             />
             {isQuestion && block.parts.some((p) => p.kind === 'alternative') && (
-              <Toggle
-                label="Alternativas lado a lado"
-                description="Economiza espaço quando são curtas."
-                checked={block.alternatives_inline}
-                onChange={(v) =>
-                  edit('Disposição das alternativas alterada', 'layout', (d) => {
-                    const b = findBlock(d, block.id)
-                    if (b) b.alternatives_inline = v
-                  })
-                }
-              />
+              <div className="flex flex-col gap-2">
+                <span className="font-bold text-slate-800">Alternativas</span>
+                <Segmented
+                  label="Como as alternativas aparecem"
+                  value={block.alternatives_layout}
+                  options={ALTERNATIVE_LAYOUTS}
+                  onChange={(v) =>
+                    edit('Disposição das alternativas alterada', 'layout', (d) => {
+                      const b = findBlock(d, block.id)
+                      if (b) b.alternatives_layout = v
+                    })
+                  }
+                />
+              </div>
             )}
             {isQuestion && (
               <Toggle

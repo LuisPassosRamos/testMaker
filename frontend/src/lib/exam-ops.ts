@@ -11,7 +11,7 @@ export function newId(prefix: string): string {
   return prefix + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-const NO_ANSWER: AnswerSpace = { kind: 'none', lines: 5, height_cm: 4 }
+const NO_ANSWER: AnswerSpace = { kind: 'none', lines: 5, height_cm: 4, label: '' }
 const QUESTION_LABEL = /^\s*((?:quest[ãa]o\s*)?\d{1,3}\s*[ºª°]?\s*(?:[.):\-–—]|\s[-–—]))\s*/i
 const ALT_LABEL = /^\s*(\(\s*[a-hA-H]\s*\)|[a-hA-H]\s*\)|[a-eA-E][.\-–—](?=\s)|\(\s*\))\s*/
 
@@ -28,7 +28,8 @@ export function makePart(kind: PartKind, init: Partial<Part> = {}): Part {
     width_cm: null,
     width_pct: 100,
     rows: null,
-    answer: kind === 'answer_space' ? { kind: 'lines', lines: 5, height_cm: 4 } : null,
+    table_borders: true,
+    answer: kind === 'answer_space' ? { kind: 'lines', lines: 5, height_cm: 4, label: '' } : null,
     provenance: { source_id: null, page: null, bbox: null, method: 'manual', confidence: null },
     issues: [],
     ...init,
@@ -45,7 +46,7 @@ export function makeBlock(kind: BlockKind, init: Partial<Block> = {}): Block {
     answer_space: { ...NO_ANSWER },
     page_break_before: false,
     allow_split: false,
-    alternatives_inline: false,
+    alternatives_layout: 'auto',
     issues: [],
     reviewed: false,
     ...init,
@@ -66,13 +67,20 @@ export function findPart(exam: Exam, partId: string): { block: Block; part: Part
   return undefined
 }
 
+/** Next question label, in the style already used ("3)" after "2)"); "1." (school style) in a new exam. */
 export function nextQuestionNumber(exam: Exam, beforeIndex = exam.blocks.length): string {
   let last = 0
+  let suffix = '.'
   exam.blocks.slice(0, beforeIndex).forEach((b) => {
-    const n = b.kind === 'question' ? parseInt((b.number ?? '').replace(/\D+/g, ''), 10) : NaN
-    if (!Number.isNaN(n)) last = n
+    const label = (b.number ?? '').trim()
+    const n = b.kind === 'question' ? parseInt(label.replace(/\D+/g, ''), 10) : NaN
+    if (!Number.isNaN(n)) {
+      last = n
+      const tail = label.match(/[.)\-–:]$/)
+      suffix = tail ? tail[0] : suffix
+    }
   })
-  return `${last + 1})`
+  return `${last + 1}${suffix}`
 }
 
 // ------------------------------------------------------------------ status
@@ -87,7 +95,7 @@ export function openIssues(block: Block): Issue[] {
 }
 
 export function hasLayoutChange(block: Block): boolean {
-  return block.page_break_before || block.allow_split || block.alternatives_inline
+  return block.page_break_before || block.allow_split || block.alternatives_layout !== 'auto'
 }
 
 export function allOpenIssues(exam: Exam): { issue: Issue; blockId: string | null }[] {

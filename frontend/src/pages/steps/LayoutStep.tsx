@@ -3,23 +3,25 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { Exam, ExamMeta, HeaderTemplate, LayoutSettings } from '../../api/types'
+import type { Exam, ExamMeta, HeaderTemplate, LayoutSettings, Modalidade } from '../../api/types'
 import { Button, Card, Field, Input, Segmented, Select, Toggle } from '../../components/ui'
 import { useSystem } from '../../hooks/useHealth'
 import { useRender } from '../../hooks/useRender'
 import { findBlock } from '../../lib/exam-ops'
-import { ANOS, UNIDADES } from '../../lib/labels'
+import { ANOS, MENSAGENS_FINAIS, MODALIDADES, PERIOD_OPTIONS, examTitle } from '../../lib/labels'
 import { flushSave, useExamStore } from '../../store/examStore'
 import { CheckList, PdfPreview } from '../review/PdfPreview'
 
+// "Padrão da escola" reproduces the school's own formatted exams (Arial 12, margins 1.5/1.6 cm).
+const SCHOOL_MARGINS = { top: 1.5, bottom: 1.6, left: 1.6, right: 1.6 }
 const PRESETS: Record<'padrao' | 'economico' | 'ampliado', Partial<LayoutSettings>> = {
-  padrao: { font_size: 12, line_spacing: 1.15, question_spacing_pt: 10, margins_cm: { top: 1.5, bottom: 1.5, left: 1.8, right: 1.8 } },
-  economico: { font_size: 11, line_spacing: 1.0, question_spacing_pt: 6, margins_cm: { top: 1.2, bottom: 1.2, left: 1.4, right: 1.4 } },
-  ampliado: { font_size: 16, line_spacing: 1.5, question_spacing_pt: 14, margins_cm: { top: 1.5, bottom: 1.5, left: 1.8, right: 1.8 } },
+  padrao: { font_size: 12, line_spacing: 1.1, question_spacing_pt: 8, answer_line_spacing_cm: 0.65, margins_cm: SCHOOL_MARGINS },
+  economico: { font_size: 11, line_spacing: 1.0, question_spacing_pt: 5, answer_line_spacing_cm: 0.55, margins_cm: { top: 1.2, bottom: 1.2, left: 1.3, right: 1.3 } },
+  ampliado: { font_size: 16, line_spacing: 1.5, question_spacing_pt: 14, answer_line_spacing_cm: 0.85, margins_cm: SCHOOL_MARGINS },
 }
 const MARGINS = {
-  estreitas: { top: 1.0, bottom: 1.0, left: 1.2, right: 1.2 },
-  normais: { top: 1.5, bottom: 1.5, left: 1.8, right: 1.8 },
+  estreitas: { top: 1.2, bottom: 1.2, left: 1.3, right: 1.3 },
+  normais: SCHOOL_MARGINS,
   largas: { top: 2.5, bottom: 2.5, left: 2.5, right: 2.5 },
 }
 
@@ -93,10 +95,10 @@ export default function LayoutStep() {
     apply((d) => {
       d.layout = { ...d.layout, ...patch, preset: 'preset' in patch ? patch.preset! : 'personalizado' }
     }, { kind: 'layout', summary })
-  const setMeta = (key: keyof ExamMeta, value: string) =>
+  const setMeta = (patch: Partial<ExamMeta>, summary = 'Dados do cabeçalho alterados') =>
     apply((d) => {
-      d.meta = { ...d.meta, [key]: value }
-    }, { kind: 'content', summary: 'Dados do cabeçalho alterados' })
+      d.meta = { ...d.meta, ...patch }
+    }, { kind: 'content', summary })
   const marginKey = (Object.keys(MARGINS) as (keyof typeof MARGINS)[]).find(
     (k) => JSON.stringify(MARGINS[k]) === JSON.stringify(layout.margins_cm),
   )
@@ -108,7 +110,7 @@ export default function LayoutStep() {
     apply((d: Exam) => {
       for (const b of discursiveWithoutSpace) {
         const target = findBlock(d, b.id)
-        if (target) target.answer_space = { kind: 'lines', lines: 5, height_cm: 4 }
+        if (target) target.answer_space = { kind: 'lines', lines: 5, height_cm: 4, label: '' }
       }
     }, { kind: 'layout', summary: `Linhas de resposta adicionadas a ${discursiveWithoutSpace.length} questão(ões)` })
   }
@@ -174,14 +176,14 @@ export default function LayoutStep() {
             </fieldset>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Professor(a)" className="col-span-2">
-                {(id) => <Input id={id} key={exam.meta.professor} defaultValue={exam.meta.professor} onBlur={(e) => e.target.value !== exam.meta.professor && setMeta('professor', e.target.value)} />}
+                {(id) => <Input id={id} key={exam.meta.professor} defaultValue={exam.meta.professor} onBlur={(e) => e.target.value !== exam.meta.professor && setMeta({ professor: e.target.value })} />}
               </Field>
               <Field label="Disciplina" className="col-span-2">
-                {(id) => <Input id={id} key={exam.meta.disciplina} defaultValue={exam.meta.disciplina} onBlur={(e) => e.target.value !== exam.meta.disciplina && setMeta('disciplina', e.target.value)} />}
+                {(id) => <Input id={id} key={exam.meta.disciplina} defaultValue={exam.meta.disciplina} onBlur={(e) => e.target.value !== exam.meta.disciplina && setMeta({ disciplina: e.target.value })} />}
               </Field>
               <Field label="Ano">
                 {(id) => (
-                  <Select id={id} value={exam.meta.ano} onChange={(e) => setMeta('ano', e.target.value)}>
+                  <Select id={id} value={exam.meta.ano} onChange={(e) => setMeta({ ano: e.target.value })}>
                     {ANOS.map((a) => (
                       <option key={a}>{a}</option>
                     ))}
@@ -189,22 +191,79 @@ export default function LayoutStep() {
                 )}
               </Field>
               <Field label="Turma">
-                {(id) => <Input id={id} key={exam.meta.turma} defaultValue={exam.meta.turma} onBlur={(e) => e.target.value !== exam.meta.turma && setMeta('turma', e.target.value)} />}
+                {(id) => <Input id={id} key={exam.meta.turma} defaultValue={exam.meta.turma} onBlur={(e) => e.target.value !== exam.meta.turma && setMeta({ turma: e.target.value })} />}
               </Field>
-              <Field label="Unidade">
+              {exam.meta.doc_type === 'prova' && (
+                <Field label="Tipo de avaliação">
+                  {(id) => (
+                    <Select id={id} value={exam.meta.modalidade ?? 'regular'} onChange={(e) => setMeta({ modalidade: e.target.value as Modalidade })}>
+                      {(Object.keys(MODALIDADES) as Modalidade[]).map((k) => (
+                        <option key={k} value={k}>
+                          {MODALIDADES[k].label}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+              )}
+              <Field label="Período">
                 {(id) => (
-                  <Select id={id} value={exam.meta.unidade} onChange={(e) => setMeta('unidade', e.target.value)}>
+                  <Select
+                    id={id}
+                    value={exam.meta.unidade ? `${exam.meta.unidade}|${exam.meta.periodo ?? 'unidade'}` : ''}
+                    onChange={(e) => {
+                      const option = PERIOD_OPTIONS.find((o) => o.value === e.target.value)
+                      setMeta({ unidade: option?.unidade ?? '', periodo: option?.periodo ?? 'unidade' })
+                    }}
+                  >
                     <option value="">—</option>
-                    {UNIDADES.map((u) => (
-                      <option key={u}>{u}</option>
+                    {PERIOD_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
                     ))}
                   </Select>
                 )}
               </Field>
               <Field label="Data">
-                {(id) => <Input id={id} key={exam.meta.data} placeholder="dd/mm/aaaa" defaultValue={exam.meta.data} onBlur={(e) => e.target.value !== exam.meta.data && setMeta('data', e.target.value)} />}
+                {(id) => <Input id={id} key={exam.meta.data} placeholder="dd/mm/aaaa" defaultValue={exam.meta.data} onBlur={(e) => e.target.value !== exam.meta.data && setMeta({ data: e.target.value })} />}
               </Field>
             </div>
+            <div className="rounded-xl bg-brand-50 px-3 py-2 text-brand-950">
+              <span className="block text-sm font-bold text-brand-700">Título na prova</span>
+              <span className="font-bold">{examTitle(exam.meta)}</span>
+            </div>
+            <Field label="Título diferente (opcional)" hint="Deixe em branco para usar o título acima, no padrão da escola.">
+              {(id, d) => (
+                <Input id={id} key={exam.meta.title} aria-describedby={d} maxLength={150} defaultValue={exam.meta.title} onBlur={(e) => e.target.value !== exam.meta.title && setMeta({ title: e.target.value }, 'Título alterado')} />
+              )}
+            </Field>
+            <Field label="Mensagem no final" hint="Opcional. As provas da escola terminam com uma frase de incentivo.">
+              {(id, d) => (
+                <>
+                  <Input
+                    id={id}
+                    key={exam.meta.mensagem_final}
+                    aria-describedby={d}
+                    maxLength={200}
+                    defaultValue={exam.meta.mensagem_final}
+                    onBlur={(e) => e.target.value !== exam.meta.mensagem_final && setMeta({ mensagem_final: e.target.value }, 'Mensagem final alterada')}
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {MENSAGENS_FINAIS.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className="min-h-9 rounded-full border border-brand-200 bg-white px-3 text-sm font-bold text-brand-800 hover:bg-brand-50"
+                        onClick={() => setMeta({ mensagem_final: m }, 'Mensagem final alterada')}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </Field>
           </Section>
 
           <Section icon={<Type className="size-5" />} title="Texto">
@@ -214,7 +273,7 @@ export default function LayoutStep() {
                 label="Estilo rápido"
                 value={layout.preset}
                 options={[
-                  { value: 'padrao', label: 'Padrão' },
+                  { value: 'padrao', label: 'Padrão da escola' },
                   { value: 'economico', label: 'Econômico' },
                   { value: 'ampliado', label: 'Ampliado (baixa visão)' },
                   ...(layout.preset === 'personalizado' ? [{ value: 'personalizado' as const, label: 'Personalizado' }] : []),
@@ -243,13 +302,19 @@ export default function LayoutStep() {
               <Segmented
                 label="Espaço entre linhas"
                 value={layout.line_spacing}
-                options={[1.0, 1.15, 1.5, 2.0].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))}
+                options={[1.0, 1.1, 1.5, 2.0].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))}
                 onChange={(v) => setLayout({ line_spacing: v }, `Entrelinha: ${v}`)}
               />
             </div>
             <CommitRange label="Espaço entre questões" value={layout.question_spacing_pt} min={0} max={36} step={2} unit="pt" onCommit={(v) => setLayout({ question_spacing_pt: v }, `Espaço entre questões: ${v} pt`)} />
             <Toggle label="Número da questão em negrito" checked={layout.bold_question_numbers} onChange={(v) => setLayout({ bold_question_numbers: v }, 'Destaque do número da questão alterado')} />
             <Toggle label="Texto justificado" description="Alinha o texto nas duas margens." checked={layout.justify_text} onChange={(v) => setLayout({ justify_text: v }, 'Alinhamento do texto alterado')} />
+            <Toggle
+              label="Alternativas curtas lado a lado"
+              description="Como nas provas da escola: “A) …  B) …” na mesma linha quando couberem."
+              checked={layout.compact_alternatives ?? true}
+              onChange={(v) => setLayout({ compact_alternatives: v }, v ? 'Alternativas curtas lado a lado' : 'Uma alternativa por linha')}
+            />
           </Section>
 
           <Section icon={<FileText className="size-5" />} title="Página (A4)">
@@ -281,8 +346,9 @@ export default function LayoutStep() {
                 onChange={(k) => setLayout({ margins_cm: MARGINS[k as keyof typeof MARGINS] }, `Margens ${k}`)}
               />
             </div>
-            <Toggle label="Numerar as páginas" description="“Página 1 de 2” no rodapé." checked={layout.page_numbers} onChange={(v) => setLayout({ page_numbers: v }, 'Numeração de páginas alterada')} />
-            <Field label="Texto do rodapé" hint="Opcional. Ex.: “Boa prova!”">
+            <Toggle label="Numerar as páginas" description="Número no canto inferior direito." checked={layout.page_numbers} onChange={(v) => setLayout({ page_numbers: v }, 'Numeração de páginas alterada')} />
+            <Toggle label="Borda em volta da página" description="Moldura fina, como nas provas da escola." checked={layout.page_border ?? true} onChange={(v) => setLayout({ page_border: v }, v ? 'Borda da página ligada' : 'Borda da página desligada')} />
+            <Field label="Texto do rodapé" hint="Opcional. Aparece no pé de todas as páginas.">
               {(id, d) => (
                 <Input id={id} key={layout.footer_text} aria-describedby={d} maxLength={120} defaultValue={layout.footer_text} onBlur={(e) => e.target.value !== layout.footer_text && setLayout({ footer_text: e.target.value }, 'Rodapé alterado')} />
               )}
@@ -302,9 +368,9 @@ export default function LayoutStep() {
                 label="Altura das linhas de resposta"
                 value={layout.answer_line_spacing_cm}
                 options={[
-                  { value: 0.6, label: 'Baixa' },
-                  { value: 0.8, label: 'Média' },
-                  { value: 1.0, label: 'Alta (letra grande)' },
+                  { value: 0.55, label: 'Baixa' },
+                  { value: 0.65, label: 'Padrão da escola' },
+                  { value: 0.85, label: 'Alta (letra grande)' },
                 ]}
                 onChange={(v) => setLayout({ answer_line_spacing_cm: v }, 'Altura das linhas de resposta alterada')}
               />

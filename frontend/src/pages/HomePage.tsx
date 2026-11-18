@@ -17,13 +17,13 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
-import type { DocType, ExamMeta, Project, ProjectSummary } from '../api/types'
+import type { DocType, ExamMeta, Modalidade, Project, ProjectSummary } from '../api/types'
 import { confirmDialog } from '../components/Dialog'
 import { GlobePattern } from '../components/GlobePattern'
 import { toast } from '../components/Toast'
 import { Alert, Button, Card, Field, Input, Select, cx } from '../components/ui'
 import { useSystem } from '../hooks/useHealth'
-import { ANOS, DISCIPLINAS, DOC_TYPES, TURNOS, UNIDADES, examTitle, formatDateBR, relativeTime } from '../lib/labels'
+import { ANOS, DISCIPLINAS, DOC_TYPES, MODALIDADES, PERIOD_OPTIONS, TURNOS, examTitle, formatDateBR, relativeTime } from '../lib/labels'
 import { forgetProject, loadProfile, recentIds, rememberProject, saveProfile } from '../lib/recent'
 
 const TYPE_ICONS: Record<DocType, ReactNode> = {
@@ -47,8 +47,10 @@ const START_OPTIONS: { value: Project['start_mode']; title: string; text: string
 const EMPTY_META: ExamMeta = {
   doc_type: 'prova',
   title: '',
+  modalidade: 'regular',
   disciplina: '',
   unidade: '',
+  periodo: 'unidade',
   ano: '',
   turma: '',
   turno: '',
@@ -56,6 +58,12 @@ const EMPTY_META: ExamMeta = {
   data: '',
   valor: '',
   data_entrega: '',
+  mensagem_final: '',
+}
+
+function summaryTitle(item: ProjectSummary): string {
+  const title = item.title || examTitle(item)
+  return item.turma.trim() ? `${title} · Turma ${item.turma.trim()}` : title
 }
 
 function RadioCard({
@@ -127,8 +135,11 @@ export default function HomePage() {
     try {
       const payload = {
         ...meta,
+        modalidade: meta.doc_type === 'prova' ? meta.modalidade : 'regular',
         data: dateIso ? formatDateBR(dateIso) : '',
         data_entrega: deliveryIso ? formatDateBR(deliveryIso) : '',
+        // The school ends its exams with an encouraging line. A file that is sent in keeps its own.
+        mensagem_final: start !== 'upload' && meta.doc_type === 'prova' ? 'Boa prova!' : '',
       }
       saveProfile({ professor: meta.professor, disciplina: meta.disciplina })
       const project = await api.createProject(start, payload)
@@ -144,7 +155,7 @@ export default function HomePage() {
   async function removeRecent(item: ProjectSummary) {
     const ok = await confirmDialog({
       title: 'Apagar este trabalho?',
-      message: `“${examTitle(item)}” e os arquivos enviados serão apagados deste computador. Isso não pode ser desfeito.`,
+      message: `“${summaryTitle(item)}” e os arquivos enviados serão apagados deste computador. Isso não pode ser desfeito.`,
       confirm: 'Apagar',
       danger: true,
     })
@@ -291,13 +302,37 @@ export default function HomePage() {
                     </Select>
                   )}
                 </Field>
-                <Field label="Unidade">
+                {meta.doc_type === 'prova' && (
+                  <Field label="Tipo de avaliação">
+                    {(id) => (
+                      <Select
+                        id={id}
+                        value={meta.modalidade}
+                        onChange={(e) => setMeta((m) => ({ ...m, modalidade: e.target.value as Modalidade }))}
+                      >
+                        {(Object.keys(MODALIDADES) as Modalidade[]).map((k) => (
+                          <option key={k} value={k}>
+                            {MODALIDADES[k].label}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                )}
+                <Field label="Unidade, trimestre ou período">
                   {(id) => (
-                    <Select id={id} value={meta.unidade} onChange={(e) => set('unidade')(e.target.value)}>
+                    <Select
+                      id={id}
+                      value={meta.unidade ? `${meta.unidade}|${meta.periodo}` : ''}
+                      onChange={(e) => {
+                        const option = PERIOD_OPTIONS.find((o) => o.value === e.target.value)
+                        setMeta((m) => ({ ...m, unidade: option?.unidade ?? '', periodo: option?.periodo ?? 'unidade' }))
+                      }}
+                    >
                       <option value="">Não informar</option>
-                      {UNIDADES.map((u) => (
-                        <option key={u} value={u}>
-                          {u} Unidade
+                      {PERIOD_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
                         </option>
                       ))}
                     </Select>
@@ -361,14 +396,14 @@ export default function HomePage() {
                         navigate(`/prova/${item.id}/conferir`)
                       }}
                     >
-                      <span className="block truncate font-bold">{examTitle(item)}</span>
+                      <span className="block truncate font-bold">{summaryTitle(item)}</span>
                       <span className="block text-sm text-slate-500">
                         {item.questions} questões · {relativeTime(item.updated_at)}
                       </span>
                     </button>
                     <button
                       className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700"
-                      aria-label={`Apagar ${examTitle(item)}`}
+                      aria-label={`Apagar ${summaryTitle(item)}`}
                       onClick={() => removeRecent(item)}
                     >
                       <Trash2 className="size-5" />

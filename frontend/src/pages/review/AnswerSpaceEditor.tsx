@@ -50,6 +50,25 @@ export function AnswerSpaceEditor({
           cm de altura
         </label>
       )}
+      {value.kind !== 'none' && (
+        <label className="flex items-center gap-2 text-slate-700">
+          Título
+          <input
+            type="text"
+            maxLength={40}
+            list="answer-space-labels"
+            placeholder="Ex.: Cálculo"
+            value={value.label ?? ''}
+            onChange={(e) => onChange({ ...value, label: e.target.value })}
+            className={`${inputBase} w-36`}
+          />
+          <datalist id="answer-space-labels">
+            <option value="Cálculo" />
+            <option value="Resolução" />
+            <option value="Resposta" />
+          </datalist>
+        </label>
+      )}
     </div>
   )
 }

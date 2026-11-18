@@ -9,7 +9,7 @@ import { Alert, Button, Card, Field, Input, Select, Toggle, inputClass } from '.
 import { useSystem } from '../../hooks/useHealth'
 import { useRender } from '../../hooks/useRender'
 import { allOpenIssues } from '../../lib/exam-ops'
-import { ANOS, DOC_TYPES, TURNOS, UNIDADES } from '../../lib/labels'
+import { ANOS, DOC_TYPES, PERIOD_OPTIONS, PERIODOS, TURNOS } from '../../lib/labels'
 import { loadProfile, saveProfile } from '../../lib/recent'
 import { useExamStore } from '../../store/examStore'
 import { CheckList } from '../review/PdfPreview'
@@ -25,7 +25,7 @@ export default function FinishStep() {
     ano: exam?.meta.ano ?? '',
     turma: exam?.meta.turma ?? '',
     turno: exam?.meta.turno ?? '',
-    unidade: exam?.meta.unidade ?? '',
+    unidade: exam?.meta.unidade ? `${exam.meta.unidade} ${PERIODOS[exam.meta.periodo ?? 'unidade']}` : '',
     data_aplicacao: exam?.meta.data ?? '',
     copias: 30,
     frente_verso: true,
@@ -223,12 +223,12 @@ export default function FinishStep() {
                   </Select>
                 )}
               </Field>
-              <Field label="Unidade">
+              <Field label="Unidade / período">
                 {(id) => (
                   <Select id={id} value={form.unidade} onChange={(e) => set('unidade', e.target.value)}>
                     <option value="">—</option>
-                    {UNIDADES.map((u) => (
-                      <option key={u}>{u}</option>
+                    {PERIOD_OPTIONS.map((o) => (
+                      <option key={o.value}>{o.label}</option>
                     ))}
                   </Select>
                 )}

@@ -34,6 +34,8 @@ export interface AnswerSpace {
   kind: 'none' | 'lines' | 'box' | 'blank'
   lines: number
   height_cm: number
+  /** Caption printed above the space, e.g. "Cálculo". */
+  label: string
 }
 
 export interface CellContent {
@@ -63,6 +65,8 @@ export interface Part {
   width_cm: number | null
   width_pct: number
   rows: TableCell[][] | null
+  /** Tables: grid lines printed (false for invisible layout tables, e.g. a poem in columns). */
+  table_borders: boolean
   answer: AnswerSpace | null
   provenance: Provenance
   issues: Issue[]
@@ -79,18 +83,24 @@ export interface Block {
   answer_space: AnswerSpace
   page_break_before: boolean
   allow_split: boolean
-  alternatives_inline: boolean
+  alternatives_layout: AlternativesLayout
   issues: Issue[]
   reviewed: boolean
 }
 
 export type DocType = 'prova' | 'atividade' | 'revisao'
+export type Modalidade = 'regular' | 'final' | 'parcial' | 'recuperacao' | 'segunda_chamada' | 'simulado'
+export type Periodo = 'unidade' | 'trimestre' | 'periodo'
+/** auto: side by side when they fit · list: one per line · row: all on one line */
+export type AlternativesLayout = 'auto' | 'list' | 'row'
 
 export interface ExamMeta {
   doc_type: DocType
   title: string
+  modalidade: Modalidade
   disciplina: string
   unidade: string
+  periodo: Periodo
   ano: string
   turma: string
   turno: string
@@ -98,6 +108,8 @@ export interface ExamMeta {
   data: string
   valor: string
   data_entrega: string
+  /** Encouraging words printed at the end ("Boa prova!"). */
+  mensagem_final: string
 }
 
 export interface Margins {
@@ -122,6 +134,8 @@ export interface LayoutSettings {
   grayscale: boolean
   bold_question_numbers: boolean
   justify_text: boolean
+  page_border: boolean
+  compact_alternatives: boolean
 }
 
 export interface HeaderConfig {
@@ -198,6 +212,8 @@ export interface Project {
 
 export interface ProjectSummary {
   id: string
+  /** Title as printed on the exam. */
+  title: string
   doc_type: DocType
   disciplina: string
   ano: string
