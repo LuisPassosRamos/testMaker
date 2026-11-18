@@ -50,7 +50,7 @@ def test_paste_text_is_structured_without_ai(client):
     questions = [b for b in blocks if b["kind"] == "question"]
     assert [q["number"] for q in questions] == ["1)", "2)"]
     assert [p["label"] for p in questions[0]["parts"] if p["kind"] == "alternative"] == ["a)", "b)", "c)"]
-    assert questions[1]["answer_space"] == {"kind": "lines", "lines": 2, "height_cm": 4.0}
+    assert questions[1]["answer_space"] == {"kind": "lines", "lines": 2, "height_cm": 4.0, "label": ""}
 
 
 def test_save_exam_detects_conflicts(client):
@@ -106,7 +106,7 @@ def test_full_flow_docx_to_print_inbox(client, settings):
     assert message["Reply-To"] == "ana@example.com"
     assert "Matemática" in message["Subject"]
     names = sorted(part.get_filename() for part in message.iter_attachments())
-    assert names == ["Prova - Matemática - 5º ano A.docx", "Prova - Matemática - 5º ano A.pdf"]
+    assert names == ["Avaliação II Unidade - Matemática 5º ano A.docx", "Avaliação II Unidade - Matemática 5º ano A.pdf"]
     body = message.get_body(("plain",)).get_content()
     assert "Quantidade de cópias: 32" in body
 
@@ -123,3 +123,13 @@ def test_send_refuses_outdated_preview(client):
     client.put(f"/api/projects/{pid}/exam", json={"revision": project["revision"], "exam": project["exam"]})
     res = client.post(f"/api/projects/{pid}/send", json={"render_id": rid, "request": PRINT})
     assert res.status_code == 409
+
+
+def test_pasted_closing_words_replace_the_default_message(client):
+    project = client.post("/api/projects", json={"start_mode": "paste",
+                                                 "meta": META | {"mensagem_final": "Boa prova!"}}).json()
+    lines = ["1) Quanto é 2 + 2?", "a) 3", "b) 4", "Boa prova!!", "Eu acredito em você!"]
+    res = client.post(f"/api/projects/{project['id']}/paste", json={"paragraphs": [[{"text": t}] for t in lines]})
+    exam = res.json()["exam"]
+    assert exam["meta"]["mensagem_final"] == ""
+    assert exam["blocks"][-1]["kind"] == "free"

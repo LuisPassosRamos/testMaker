@@ -62,11 +62,21 @@ SUPPORT_RE = re.compile(
       | observe\s+(?:atentamente\s+|com\s+aten[çc][ãa]o\s+)?(?:a|o|as|os)\s+(?:seguinte\s+)?(?:imagem|imagens|figura|figuras|
             tirinha|charge|tabela|gr[áa]fico|mapa|ilustra)
       | analise\s+(?:a|o|as|os)\s+(?:imagem|figura|tabela|gr[áa]fico|mapa)
+      | (?:leia|observe|analise)\s*[:.]?\s*$
       | .*\bpara\s+(?:responder\s+)?(?:[àa]s?|as)\s+quest[õo]es\b
       | .*\bquest[õo]es\s+\d+\s*(?:a|e|-|–|at[ée])\s*\d+
     )""",
     re.IGNORECASE | re.VERBOSE,
 )
+
+# Credit line of a support text: "Fonte: …", "Texto: Tudo Sala de Aula, 2021", "Disponível em: …".
+SOURCE_LINE_RE = re.compile(
+    r"^\s*\(?(fonte\s*:|texto\s*:\s*\S|dispon[íi]vel\s+(em|no|na)\b|adaptado\s+de\b|extra[íi]do\s+de\b|"
+    r"adaptado\)?\s*\.?$)",
+    re.IGNORECASE,
+)
+# "COLUNA 2:" heading inside an association question.
+COLUMN_HEADING_RE = re.compile(r"^\s*coluna\s*(\d+|[a-d]|[ivx]+)?\s*[:.]?\s*$", re.IGNORECASE)
 
 PAGE_NUMBER_RE = re.compile(r"^\s*((p[áa]gina|p[áa]g\.?)\s*)?\d{1,3}(\s*(de|/)\s*\d{1,3})?\s*$", re.IGNORECASE)
 UNDERSCORE_LINE_RE = re.compile(r"^[\s_.\-–—]{10,}$")

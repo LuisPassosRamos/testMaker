@@ -39,6 +39,7 @@ class MediaItem:
     rows: list[list[TableCell]] | None = None
     issues: list[Issue] = field(default_factory=list)
     from_page_header: bool = False
+    table_borders: bool = True  # tables: grid lines visible in the original
 
 
 @dataclass

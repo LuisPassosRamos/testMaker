@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.config import Settings
 from app.domain.models import DOC_TYPE_LABELS, Exam
+from app.rendering.docx_writer import header_title
 
 log = logging.getLogger(__name__)
 _EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,}$")
@@ -69,6 +70,7 @@ def build_message(exam: Exam, request: PrintRequest, pdf: Path, docx: Path, pdf_
     kind = DOC_TYPE_LABELS.get(exam.meta.doc_type, "Prova")
     subject = f"[Impressão] {kind} de {request.disciplina} – {request.ano} {request.turma} – Prof.(a) {request.professor}"
     rows = [
+        ("Título", header_title(exam)),
         ("Tipo", kind),
         ("Professor(a)", request.professor),
         ("Disciplina", request.disciplina),

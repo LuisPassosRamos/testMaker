@@ -16,6 +16,7 @@ from app.extraction.pipeline import ExtractionPipeline, crop_from_source
 from app.importing.storage import ProjectNotFound
 from app.importing.validation import UploadRejected, validate_upload
 from app.jobs import JobBusy
+from app.rendering.docx_writer import header_title
 from app.structuring.paste import pasted_items
 from app.structuring.segmenter import segment
 
@@ -31,6 +32,7 @@ class CreateProject(BaseModel):
 
 class ProjectSummary(BaseModel):
     id: str
+    title: str
     doc_type: str
     disciplina: str
     ano: str
@@ -78,7 +80,7 @@ def list_projects(ids: str = Query("", max_length=2000), svc: Services = Depends
         except ProjectNotFound:
             continue
         out.append(ProjectSummary(
-            id=p.id, doc_type=p.exam.meta.doc_type, disciplina=p.exam.meta.disciplina, ano=p.exam.meta.ano,
+            id=p.id, title=header_title(p.exam), doc_type=p.exam.meta.doc_type, disciplina=p.exam.meta.disciplina, ano=p.exam.meta.ano,
             turma=p.exam.meta.turma, questions=sum(1 for b in p.exam.blocks if b.kind == "question"),
             updated_at=p.updated_at.isoformat(),
         ))
@@ -195,6 +197,8 @@ def paste_text(pid: str, body: PasteRequest, svc: Services = Depends(services)) 
         else:
             p.exam.blocks.extend(result.blocks)
             p.exam.document_issues.extend(i for i in result.issues if i.code != "no_questions" or not p.exam.blocks)
+        if result.has_closing:
+            p.exam.meta.mensagem_final = ""  # the teacher's own closing words are kept; do not repeat them
 
     return svc.store.mutate(pid, apply)
 

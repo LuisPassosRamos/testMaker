@@ -311,8 +311,23 @@ class DocxExtractor:
             # A numbered paragraph without text (e.g. the number followed only by an image).
             items.insert(0, TextItem(runs=[], prov=self._prov(), list_label=label.text, issues=issues))
         if not items and not extra_items:
-            return [_EmptyParagraph(self._prov())]  # type: ignore[list-item]
+            return [_EmptyParagraph(self._prov(), ruled=self._has_bottom_rule(ppr, style_id))]  # type: ignore[list-item]
         return items + extra_items
+
+    def _has_bottom_rule(self, ppr, style_id: str | None) -> bool:
+        """An empty paragraph drawn as an answer line (bottom border), directly or by its style."""
+        candidates = [ppr]
+        if style_id:
+            style = self.doc.styles.element.find(f"{qn('w:style')}[@{qn('w:styleId')}='{style_id}']")
+            if style is not None:
+                candidates.append(style.find(qn("w:pPr")))
+        for el in candidates:
+            if el is None:
+                continue
+            bottom = el.find(f"{qn('w:pBdr')}/{qn('w:bottom')}")
+            if bottom is not None and bottom.get(qn("w:val")) not in ("nil", "none"):
+                return True
+        return False
 
     def _collect(self, el, part, style_id, segments: list[_Segment], extra: list[Item], issues: list[Issue]):
         for child in el.iterchildren():
@@ -612,7 +627,7 @@ class DocxExtractor:
                     break
             return inner_items
 
-        media = MediaItem(kind="table", prov=self._prov(), rows=rows)
+        media = MediaItem(kind="table", prov=self._prov(), rows=rows, table_borders=self._table_has_borders(tbl))
         if nested:
             media.issues.append(
                 Issue(
@@ -623,12 +638,43 @@ class DocxExtractor:
             )
         return [media]
 
+    def _table_has_borders(self, tbl) -> bool:
+        """Whether the grid is printed: poems or columns side by side often use invisible tables."""
+
+        def visible(borders) -> bool | None:
+            if borders is None:
+                return None
+            return any(b.get(qn("w:val")) not in (None, "nil", "none") for b in borders)
+
+        tblpr = tbl.find(qn("w:tblPr"))
+        if tblpr is not None:
+            found = visible(tblpr.find(qn("w:tblBorders")))
+            if found is not None:
+                return found
+            style = tblpr.find(qn("w:tblStyle"))
+            if style is not None:
+                style_el = self.doc.styles.element.find(
+                    f"{qn('w:style')}[@{qn('w:styleId')}='{style.get(qn('w:val'))}']")
+                if style_el is not None:
+                    found = visible(style_el.find(f"{qn('w:tblPr')}/{qn('w:tblBorders')}"))
+                    if found is not None:
+                        return found
+        return any(visible(b) for b in tbl.iter(qn("w:tcBorders")))
+
     # ------------------------------------------------------------ answer lines
     def _collapse_answer_lines(self, items: list[Item]) -> list[Item]:
         """Turn runs of underscore-only paragraphs or empty paragraphs into answer space markers."""
         out: list[Item] = []
         empty_run = 0
         for item in items:
+            if isinstance(item, _EmptyParagraph) and item.ruled:
+                # A line drawn with a paragraph border: same as a row of underscores.
+                empty_run = 0
+                if out and isinstance(out[-1], AnswerLinesItem) and not out[-1].blank:
+                    out[-1].count += 1
+                else:
+                    out.append(AnswerLinesItem(count=1, prov=item.prov))
+                continue
             if isinstance(item, _EmptyParagraph):
                 empty_run += 1
                 continue
@@ -651,6 +697,7 @@ class DocxExtractor:
 class _EmptyParagraph:
     """Marker for an empty paragraph; consumed by ``_collapse_answer_lines``."""
 
-    def __init__(self, prov: Provenance):
+    def __init__(self, prov: Provenance, ruled: bool = False):
         self.prov = prov
+        self.ruled = ruled
 

@@ -103,3 +103,37 @@ def test_equations_become_linear_text_with_real_superscripts():
     assert runs_text(runs) == "√(x+1)=an"
     assert any(r.sub and r.text == "n" for r in runs)
     assert unsupported == []
+
+
+def test_school_conventions_in_pasted_text():
+    result = _segment(
+        "Leia o texto:\n"
+        "O futsal é jogado em quadra.\n"
+        "Texto: Revista Exemplo, 2025\n"
+        "1. Relacione as colunas:\n"
+        "(1) Esporte coletivo\n"
+        "(2) Esporte individual\n"
+        "( ) futsal\n"
+        "( ) natação\n"
+        "2. Quanto é 2 + 3?\n"
+        "A) 4\tB) 5\tC) 6\tD) 7\n"
+        "Cálculo\n"
+        "______________________\n"
+        "______________________\n"
+        "3. O coletivo de “aves” é:\n"
+        "( ) bando.\t( ) alcateia.\t( ) rebanho.\n"
+        "Boa prova!!\n"
+        "Eu acredito em você!\n"
+    )
+    blocks = result.blocks
+    assert [b.number for b in blocks if b.kind == "question"] == ["1.", "2.", "3."]
+    assert runs_text(blocks[0].parts[-1].runs) == "Texto: Revista Exemplo, 2025"
+    q1, q2, q3 = (b for b in blocks if b.kind == "question")
+    assert [runs_text(p.runs) for p in q1.parts if p.kind == "paragraph"][1:] == ["(1) Esporte coletivo",
+                                                                                   "(2) Esporte individual"]
+    assert [p.label for p in q2.parts if p.kind == "alternative"] == ["A)", "B)", "C)", "D)"]
+    assert q2.answer_space.kind == "lines" and q2.answer_space.label == "Cálculo"
+    assert [runs_text(p.runs) for p in q3.parts if p.kind == "alternative"] == ["bando.", "alcateia.", "rebanho."]
+    assert blocks[-1].kind == "free"
+    assert [runs_text(p.runs) for p in blocks[-1].parts] == ["Boa prova!!", "Eu acredito em você!"]
+    assert not [i for b in blocks for i in b.issues if i.severity != "info"]

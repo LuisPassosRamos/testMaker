@@ -30,6 +30,66 @@ CANDIDATES: list[tuple[str, list[str], str]] = [
 ]
 
 
+BOLD_FILES: dict[str, list[str]] = {
+    "Arial": ["arialbd.ttf", "LiberationSans-Bold.ttf"],
+    "Calibri": ["calibrib.ttf", "Carlito-Bold.ttf"],
+    "Times New Roman": ["timesbd.ttf", "LiberationSerif-Bold.ttf"],
+    "Verdana": ["verdanab.ttf"],
+    "Century Gothic": ["GOTHICB.TTF", "gothicb.ttf"],
+    "Comic Sans MS": ["comicbd.ttf"],
+}
+
+
+def _font_dirs() -> list[Path]:
+    if sys.platform == "win32":
+        return [Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts",
+                Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Windows" / "Fonts"]
+    return [Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), Path.home() / ".fonts"]
+
+
+@lru_cache
+def _font_index() -> dict[str, Path]:
+    index: dict[str, Path] = {}
+    for base in _font_dirs():
+        if not base.exists():
+            continue
+        for path in base.rglob("*"):
+            if path.suffix.lower() in (".ttf", ".otf"):
+                index.setdefault(path.name.lower(), path)
+    return index
+
+
+@lru_cache
+def _truetype(family: str, bold: bool):
+    """The installed font file for a family (the metric-compatible one on Linux), or None."""
+    from PIL import ImageFont
+
+    names = BOLD_FILES.get(family, []) if bold else next((f for n, f, _ in CANDIDATES if n == family), [])
+    index = _font_index()
+    for name in names:
+        path = index.get(name.lower())
+        if path is not None:
+            try:
+                return ImageFont.truetype(str(path), size=1000)
+            except OSError:
+                continue
+    return None
+
+
+def text_width_cm(text: str, family: str, size_pt: float, bold: bool = False) -> float:
+    """Printed width of a single line of text, used to decide if alternatives fit side by side.
+
+    Uses the real font metrics when the font file is available, otherwise a conservative
+    estimate (average glyph width of 0.6 em), so the result errs on the side of "does not fit".
+    """
+    font = _truetype(family, bold) or (_truetype("Arial", bold) if family != "Arial" else None)
+    if font is not None:
+        width_em = font.getlength(text) / 1000
+    else:
+        width_em = 0.6 * len(text)
+    return width_em * size_pt / 72 * 2.54
+
+
 @lru_cache
 def available_fonts() -> list[dict[str, str]]:
     found: set[str] = set()

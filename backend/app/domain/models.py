@@ -14,7 +14,7 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def new_id(prefix: str = "") -> str:
@@ -102,6 +102,8 @@ class AnswerSpace(BaseModel):
     kind: Literal["none", "lines", "box", "blank"] = "none"
     lines: int = Field(5, ge=1, le=40)
     height_cm: float = Field(4.0, ge=1.0, le=25.0)
+    # Small caption printed above the space, e.g. "Cálculo" in Mathematics.
+    label: str = Field("", max_length=40)
 
 
 class CellContent(BaseModel):
@@ -133,6 +135,7 @@ class Part(BaseModel):
     width_cm: float | None = None  # natural width of an image in the original
     width_pct: int = Field(100, ge=10, le=100)  # user scale relative to the natural width
     rows: list[list[TableCell]] | None = None  # table
+    table_borders: bool = True  # grid lines; False for layout tables (e.g. poems side by side)
     answer: AnswerSpace | None = None  # answer_space parts (answer lines inside a question)
     provenance: Provenance = Field(default_factory=Provenance)
     issues: list[Issue] = Field(default_factory=list)
@@ -142,6 +145,9 @@ class Part(BaseModel):
 
 
 BlockKind = Literal["original_header", "instructions", "support_text", "question", "free", "page_break"]
+# auto: side by side when they fit (school standard: "A) …  B) …" on one line) · list: one per line ·
+# row: all on a single line
+AlternativesLayout = Literal["auto", "list", "row"]
 
 
 class Block(BaseModel):
@@ -154,9 +160,19 @@ class Block(BaseModel):
     # Layout overrides (shown as "diagramação" changes)
     page_break_before: bool = False
     allow_split: bool = False
-    alternatives_inline: bool = False
+    alternatives_layout: AlternativesLayout = "auto"
     issues: list[Issue] = Field(default_factory=list)
     reviewed: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_inline_flag(cls, data: Any) -> Any:
+        # Projects saved before "alternatives_layout" stored a single "all on one line" flag.
+        if isinstance(data, dict) and "alternatives_inline" in data:
+            data = dict(data)
+            if data.pop("alternatives_inline") and "alternatives_layout" not in data:
+                data["alternatives_layout"] = "row"
+        return data
 
 
 # ------------------------------------------------------------------- settings
@@ -166,12 +182,19 @@ DocType = Literal["prova", "atividade", "revisao"]
 
 DOC_TYPE_LABELS: dict[str, str] = {"prova": "Prova", "atividade": "Atividade", "revisao": "Revisão"}
 
+# Kinds of exam seen in the school's material (regular unit exams, finals, partial tests…).
+Modalidade = Literal["regular", "final", "parcial", "recuperacao", "segunda_chamada", "simulado"]
+# How the school year is divided in the title: "II Unidade", "III Trimestre", "II Período".
+Periodo = Literal["unidade", "trimestre", "periodo"]
+
 
 class ExamMeta(BaseModel):
     doc_type: DocType = "prova"
-    title: str = ""
+    title: str = ""  # custom title; empty = built from the fields below
+    modalidade: Modalidade = "regular"
     disciplina: str = ""
-    unidade: str = ""
+    unidade: str = ""  # roman numeral as chosen: "I", "II", "III", "IV"
+    periodo: Periodo = "unidade"
     ano: str = ""
     turma: str = ""
     turno: str = ""
@@ -179,13 +202,16 @@ class ExamMeta(BaseModel):
     data: str = ""  # free text as typed (dd/mm/aaaa)
     valor: str = ""
     data_entrega: str = ""
+    # Encouraging line printed at the end ("Boa prova!"), as in the school's exams.
+    mensagem_final: str = Field("", max_length=200)
 
 
 class Margins(BaseModel):
+    # School standard (reference exams): 1.5 cm on top, 1.6 cm on the other sides.
     top: float = Field(1.5, ge=0.8, le=4)
-    bottom: float = Field(1.5, ge=0.8, le=4)
-    left: float = Field(1.8, ge=0.8, le=4)
-    right: float = Field(1.8, ge=0.8, le=4)
+    bottom: float = Field(1.6, ge=0.8, le=4)
+    left: float = Field(1.6, ge=0.8, le=4)
+    right: float = Field(1.6, ge=0.8, le=4)
 
 
 class LayoutSettings(BaseModel):
@@ -193,16 +219,18 @@ class LayoutSettings(BaseModel):
     margins_cm: Margins = Field(default_factory=Margins)
     font_family: str = "Arial"
     font_size: float = Field(12, ge=10, le=20)
-    line_spacing: float = Field(1.15, ge=1.0, le=2.0)
-    question_spacing_pt: int = Field(10, ge=0, le=36)
+    line_spacing: float = Field(1.1, ge=1.0, le=2.0)
+    question_spacing_pt: int = Field(8, ge=0, le=36)
     columns: Literal[1, 2] = 1
     column_separator: bool = True
-    answer_line_spacing_cm: float = Field(0.8, ge=0.5, le=1.5)
+    answer_line_spacing_cm: float = Field(0.65, ge=0.5, le=1.5)
     page_numbers: bool = True
     footer_text: str = ""
     grayscale: bool = True
     bold_question_numbers: bool = True
     justify_text: bool = False
+    page_border: bool = True  # thin frame around each page, as in the school's exams
+    compact_alternatives: bool = True  # short alternatives side by side ("A) …   B) …")
 
 
 class HeaderConfig(BaseModel):

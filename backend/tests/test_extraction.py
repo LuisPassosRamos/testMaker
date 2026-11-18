@@ -51,14 +51,14 @@ def _check_expected(blocks: list[Block], spec: dict) -> None:
         question = next(q for q in questions if q.number == label)
         alternatives = [p for p in question.parts if p.kind == "alternative"]
         assert len(alternatives) == count, f"question {label}"
-        labels = [p.label for p in alternatives]
-        assert len(set(labels)) == len(labels) or set(labels) == {"( )"}, "alternative duplicated"
+        lettered = [p.label for p in alternatives if p.label != "( )"]  # "( )" options repeat by design
+        assert len(set(lettered)) == len(lettered), "alternative duplicated"
     text = _all_text(blocks)
     for snippet in spec.get("must_contain", []):
         assert snippet in text, f"missing text: {snippet!r}"
 
 
-@pytest.mark.parametrize("name", ["prova-matematica.docx", "atividade-portugues.docx"])
+@pytest.mark.parametrize("name", ["prova-matematica.docx", "atividade-portugues.docx", "prova-padrao-escola.docx"])
 def test_docx_keeps_every_question_alternative_and_symbol(expected, name):
     _check_expected(_docx_blocks(name), expected[name])
 
@@ -87,6 +87,36 @@ def test_docx_image_and_table_stay_with_the_right_content():
     assert kinds.index("table") < kinds.index("alternative")
     table = next(p for p in q6.parts if p.kind == "table")
     assert runs_text(table.rows[1][1].content[0].runs) == "R$ 12,50"
+
+
+def test_school_format_is_understood():
+    """The school's own Word layout: tabs between alternatives, "Cálculo" + drawn lines, closing words."""
+    blocks = _docx_blocks("prova-padrao-escola.docx")
+    assert blocks[0].kind == "original_header"
+    assert "Avaliação II Unidade - Ciências 4º ano" in _all_text(blocks[:1])
+    questions = {q.number: q for q in _questions(blocks)}
+    # "Texto: …" credits the text it follows; it does not start a new block.
+    support = next(b for b in blocks if b.kind == "support_text")
+    assert runs_text(support.parts[-1].runs) == "Texto: Revista Exemplo, 2025"
+    # "(1)"/"(2)" column items stay inside question 3 instead of becoming questions 1 and 2.
+    assert [runs_text(p.runs) for p in questions["3."].parts if p.kind == "paragraph"][1:] == [
+        "(1) Animal que voa", "(2) Animal que nada"]
+    # "( ) a\t( ) b\t( ) c" is three options.
+    assert [runs_text(p.runs) for p in questions["4."].parts if p.kind == "alternative"] == [
+        "verbo.", "substantivo.", "adjetivo."]
+    # "Cálculo" over three lines drawn with paragraph borders becomes a labelled answer space.
+    assert questions["5."].answer_space.model_dump() == {"kind": "lines", "lines": 3, "height_cm": 4.0,
+                                                         "label": "Cálculo"}
+    assert questions["6."].answer_space.kind == "lines" and questions["6."].answer_space.lines == 2
+    # "COLUNA B:" stays in the association question.
+    assert "COLUNA B:" in [runs_text(p.runs) for p in questions["7."].parts]
+    # A poem placed with an invisible table keeps its table invisible.
+    poem = next(p for b in blocks if b.kind == "support_text" for p in b.parts if p.kind == "table")
+    assert poem.table_borders is False
+    # The encouraging words end the exam on their own, without "after the alternatives" warnings.
+    assert blocks[-1].kind == "free"
+    assert [runs_text(p.runs) for p in blocks[-1].parts] == ["Boa prova!!", "Eu acredito em você!"]
+    assert not [i for b in blocks for i in b.issues if i.code in ("after_alternatives", "numbering_restart")]
 
 
 def test_docx_answer_lines_and_header_detection():

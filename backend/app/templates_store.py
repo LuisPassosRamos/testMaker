@@ -27,7 +27,7 @@ FIELD_LABELS: dict[str, str] = {
     "numero": "Nº",
     "professor": "Professor(a)",
     "disciplina": "Disciplina",
-    "ano_turma": "Ano/Turma",
+    "ano_turma": "Turma",
     "turno": "Turno",
     "unidade": "Unidade",
     "data": "Data",
@@ -39,6 +39,8 @@ FIELD_LABELS: dict[str, str] = {
 DEFAULT_LOGO = BACKEND_DIR / "app" / "assets" / "logo-madre.png"
 _ID = re.compile(r"^[a-z0-9-]{3,40}$")
 _LOGO = re.compile(r"^[a-z0-9-]{3,40}-[0-9a-f]{6}\.png$")
+# Bumped when the built-in template changes, so an untouched saved copy is upgraded.
+BUILTIN_REVISION = 2
 
 
 class HeaderField(BaseModel):
@@ -57,31 +59,33 @@ class HeaderTemplate(BaseModel):
     show_title: bool = True
     fields: list[HeaderField] = Field(default_factory=list)
     builtin: bool = False
+    revision: int = 1
 
 
 def default_fields() -> list[HeaderField]:
-    enabled = {"aluno", "numero", "professor", "disciplina", "ano_turma", "unidade", "data", "nota", "data_entrega"}
-    order = ["aluno", "numero", "professor", "disciplina", "ano_turma", "turno", "unidade", "data", "nota", "valor",
+    """The school's identification lines: ALUNO(A) · DATA + TURMA · PROFESSOR(A).
+
+    The other fields stay available (turned off) for teachers who want them.
+    """
+    enabled = {"aluno", "data", "ano_turma", "professor", "data_entrega"}
+    order = ["aluno", "numero", "data", "ano_turma", "professor", "disciplina", "turno", "unidade", "nota", "valor",
              "data_entrega"]
     return [HeaderField(key=k, label=FIELD_LABELS[k], enabled=k in enabled) for k in order]  # type: ignore[arg-type]
 
 
 def builtin_template() -> HeaderTemplate:
+    """Header used in the school's formatted exams (logo box + identification lines)."""
     return HeaderTemplate(
         id="padrao-madre",
-        name="Padrão Madre (econômico)",
-        school_name="ESCOLA MUNICIPALIZADA MADRE Mª DO ROSÁRIO DE ALMEIDA II",
-        school_lines=[
-            "Rua Justiniano Rocha Galvão s/n - Centro",
-            "E-mail: escolamadrerosario2019@gmail.com",
-            "Santo Antonio de Jesus – Bahia",
-            "Portaria nº 2443 - D.O.E. 10/05/1972",
-        ],
+        name="Padrão Madre",
+        school_name="ESCOLA MUNICIPALIZADA MADRE MARIA DO ROSÁRIO DE ALMEIDA II",
+        school_lines=[],
         show_logo=True,
         logo=None,
         show_title=True,
         fields=default_fields(),
         builtin=True,
+        revision=BUILTIN_REVISION,
     )
 
 
@@ -116,6 +120,10 @@ class TemplateStore:
             return [builtin_template()]
         data = json.loads(self.file.read_text(encoding="utf-8"))
         templates = [HeaderTemplate.model_validate(t) for t in data]
+        for i, template in enumerate(templates):
+            if template.id == "padrao-madre" and template.revision < BUILTIN_REVISION:
+                # Older built-in copy: adopt the school's current standard, keeping a custom logo.
+                templates[i] = builtin_template().model_copy(update={"logo": template.logo})
         if not any(t.id == "padrao-madre" for t in templates):
             templates.insert(0, builtin_template())
         return templates
@@ -144,6 +152,8 @@ class TemplateStore:
             if not template.id or not _ID.match(template.id):
                 template.id = f"modelo-{secrets.token_hex(3)}"
             template.builtin = template.id == "padrao-madre"
+            if template.builtin:
+                template.revision = BUILTIN_REVISION
             for i, existing in enumerate(templates):
                 if existing.id == template.id:
                     templates[i] = template

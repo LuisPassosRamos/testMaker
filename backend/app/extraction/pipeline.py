@@ -95,6 +95,8 @@ class ExtractionPipeline:
             p.sources = sources
             p.exam.blocks = result.blocks
             p.exam.document_issues = doc_issues + result.issues
+            if result.has_closing:
+                p.exam.meta.mensagem_final = ""  # the file's own closing words are kept; do not repeat them
 
         self.store.mutate(pid, apply)
         self.store.sync_files(pid)

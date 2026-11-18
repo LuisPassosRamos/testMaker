@@ -52,6 +52,34 @@
       "pa__aro"
     ]
   },
+  "prova-padrao-escola.docx": {
+    "questions": [
+      "1.",
+      "2.",
+      "3.",
+      "4.",
+      "5.",
+      "6.",
+      "7.",
+      "8."
+    ],
+    "alternatives": {
+      "1.": 4,
+      "2.": 3,
+      "3.": 2,
+      "4.": 3,
+      "5.": 4,
+      "7.": 4,
+      "8.": 4
+    },
+    "must_contain": [
+      "(1) Animal que voa",
+      "Texto: Revista Exemplo, 2025",
+      "Boa prova!!",
+      "Eu acredito em você!",
+      "( ) substantivo."
+    ]
+  },
   "prova-matematica.pdf": {
     "questions": [
       "1.",

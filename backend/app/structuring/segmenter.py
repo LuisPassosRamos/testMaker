@@ -15,11 +15,13 @@ from dataclasses import dataclass, field
 from app.domain.models import AnswerSpace, Block, Issue, Part, Run, merge_runs, runs_text
 from app.extraction.items import AnswerLinesItem, Item, MediaItem, PageBreakItem, TextItem
 from app.structuring.patterns import (
+    COLUMN_HEADING_RE,
     HEADER_FIELD_RE,
     INLINE_ALT_RE,
     INSTRUCTION_HEADING_RE,
     INSTRUCTION_ITEM_RE,
     SCHOOL_NAME_RE,
+    SOURCE_LINE_RE,
     SUPPORT_RE,
     LabelMatch,
     match_alternative,
@@ -34,12 +36,39 @@ _TITLE_RE = re.compile(
 _LIST_QUESTION_RE = re.compile(r"^\(?(\d{1,3})\s*[ºª°]?[\.\)\-–—:]?\)?$")
 _LIST_ALT_RE = re.compile(r"^\(?([a-hA-H])[\)\.\-–]?\)?$")
 _FOLLOW_UP_RE = re.compile(r"^\s*(justifique|explique|responda|mostre|comente|demonstre|registre|apresente)\b", re.I)
+# Caption of a work area under the alternatives ("Cálculo", "Resolução:") — part of the question.
+_WORK_LABEL_RE = re.compile(
+    r"^\s*(c[áa]lculos?|resolu[çc][ãa]o|rascunho|espa[çc]o\s+para\s+(o\s+|os\s+)?c[áa]lculos?|"
+    r"(mostre|fa[çc]a|registre)\s+(o|os|seus?|aqui\s+o)\s+c[áa]lculos?(\s+aqui)?)\s*[:.]?\s*$",
+    re.IGNORECASE,
+)
+# Encouraging lines that close the school's exams ("Boa prova!!", "Você é capaz!!").
+_CLOSING_RE = re.compile(
+    r"\b(boa\s+prova|boa\s+sorte|voc[êe]\s+(consegue|[ée]\s+capaz|vai\s+conseguir)|acredito\s+em\s+voc|"
+    r"orgulho\s+de\s+voc|mantenha\s+a\s+calma|sucesso\s*!)",
+    re.IGNORECASE,
+)
+_QUOTED_LINE_RE = re.compile(r"^\s*[“\"«].{3,150}[”\"»]\s*\.?\s*$")
+# Several "( )" options written on one line, separated by tabs or wide spaces.
+_INLINE_BOX_RE = re.compile(r"(?:\t+|\s{2,})(?P<label>\(\s{0,3}\)|\[\s{0,3}\]|[□☐❑○◯])\s*")
+
+
+def _label_style(label: str) -> str:
+    """Rough shape of a question label, used to tell "1." questions from "(1)" association items."""
+    label = label.strip()
+    if label[:1].lower() == "q":
+        return "word"
+    if label.startswith("("):
+        return "paren"
+    return label[-1:] if label[-1:] in ".)-–—:" else "plain"
 
 
 @dataclass
 class SegmentResult:
     blocks: list[Block] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
+    # The text already ends with its own encouraging words ("Boa prova!!").
+    has_closing: bool = False
 
 
 def split_runs(runs: list[Run], offset: int) -> tuple[list[Run], list[Run]]:
@@ -82,6 +111,8 @@ class Segmenter:
         self.in_instructions = False
         self.pending_media: list[Part] = []
         self.doc_issues: list[Issue] = []
+        self.question_style: str | None = None
+        self.closing: Block | None = None
 
     # ------------------------------------------------------------------ API
     def run(self, items: list[Item]) -> SegmentResult:
@@ -102,7 +133,8 @@ class Segmenter:
             target.parts.extend(self.pending_media)
             self.pending_media = []
         self._finalise()
-        return SegmentResult(blocks=self.blocks, issues=self.doc_issues)
+        return SegmentResult(blocks=self.blocks, issues=self.doc_issues,
+                             has_closing=self.closing is not None and bool(self.closing.parts))
 
     # -------------------------------------------------------------- helpers
     def _open(self, kind: str, number: str | None = None) -> Block:
@@ -200,12 +232,24 @@ class Segmenter:
         if self.phase == "source_start":
             self.phase = "body"
 
-        if INSTRUCTION_HEADING_RE.match(text) and not match_question(text):
+        if self.last_number is not None and len(text) < 80 and text.endswith("!") \
+                and INSTRUCTION_HEADING_RE.match(text) and self.current is not None \
+                and self.current.kind == "question":
+            # "Leia com atenção!" after the last question is part of the closing words.
+            self.closing = self._open("free")
+            self.closing.parts.append(self._labelled_paragraph(item, None))
+            return
+
+        if INSTRUCTION_HEADING_RE.match(text) and not match_question(text) and not SUPPORT_RE.match(text):
             self.in_instructions = True
             self._ensure("instructions").parts.append(self._part_from_text(item))
             return
 
         q = self._question_label(item)
+        if q is not None and self._is_inner_item(q):
+            # "(1) Paisagem natural" inside "4. Relacione…": a column item, not question 1.
+            self.current.parts.append(self._labelled_paragraph(item, None))  # type: ignore[union-attr]
+            return
         if q is not None:
             rest = text[q.rest_offset:] if q.rest_offset else text
             if (self.in_instructions or self.phase == "start") and INSTRUCTION_ITEM_RE.match(rest):
@@ -216,6 +260,8 @@ class Segmenter:
             if self._accept_number(q.number or 0, issues, q.label):
                 self.in_instructions = False
                 self.last_number = q.number
+                if self.question_style is None:
+                    self.question_style = _label_style(q.label)
                 block = self._open("question", q.label)
                 block.issues.extend(issues)
                 _, after = split_runs(item.runs, q.rest_offset)
@@ -241,6 +287,12 @@ class Segmenter:
             self._ensure("instructions").parts.append(self._labelled_paragraph(item, None))
             return
 
+        if len(text) < 200 and SOURCE_LINE_RE.match(text) and self.current is not None \
+                and self.current.kind in ("support_text", "free", "question") and self.current is not self.closing:
+            # The credit of the text just read stays with it.
+            self.current.parts.append(self._labelled_paragraph(item, None))
+            return
+
         if SUPPORT_RE.match(text):
             self.in_instructions = False
             self._open("support_text").parts.append(self._part_from_text(item))
@@ -251,13 +303,21 @@ class Segmenter:
             self._add_alternatives(item, alt)
             return
 
+        if self._is_closing(text):
+            self.in_instructions = False
+            if self.closing is None or self.current is not self.closing:
+                self.closing = self._open("free")
+            self.closing.parts.append(self._labelled_paragraph(item, None))
+            return
+
         self.in_instructions = False
         current = self.current
         if current is None or current.kind in ("original_header", "instructions"):
             self._open("support_text" if len(text) > 60 else "free").parts.append(self._labelled_paragraph(item, None))
             return
         if current.kind == "question" and any(p.kind == "alternative" for p in current.parts):
-            if len(text) < 140 and _FOLLOW_UP_RE.match(text):
+            if len(text) < 140 and (_FOLLOW_UP_RE.match(text) or _WORK_LABEL_RE.match(text)
+                                    or COLUMN_HEADING_RE.match(text)):
                 current.parts.append(self._labelled_paragraph(item, None))
                 return
             block = self._open("support_text")
@@ -269,7 +329,35 @@ class Segmenter:
                 "ou se pertence à questão de cima (use “Juntar com o anterior”).",
             ))
             return
+        if current.kind == "free" and current is not self.closing and len(text) > 60:
+            current.kind = "support_text"  # a short heading followed by a text to read
         current.parts.append(self._labelled_paragraph(item, None))
+
+    def _is_inner_item(self, q: LabelMatch) -> bool:
+        """A numbered line whose label looks different from the questions' and breaks the sequence."""
+        current = self.current
+        if current is None or current.kind != "question" or self.question_style is None:
+            return False
+        style = _label_style(q.label)
+        if style == self.question_style:
+            return False
+        if style == "paren":
+            return True  # "(1)", "(2)" under a question numbered "1." are its column items
+        return q.number != (self.last_number or 0) + 1
+
+    def _is_closing(self, text: str) -> bool:
+        if self.phase != "body" or len(text) > 160 or text.rstrip().endswith(("?", ":")):
+            return False
+        current = self.current
+        if current is None or current.kind == "original_header":
+            return False
+        if self.closing is not None and current is self.closing:
+            return True  # "Boa prova!!" followed by "Eu acredito em você!"
+        if _CLOSING_RE.search(text):
+            return True
+        # A short quotation right after a finished question: “Tudo posso naquele que me fortalece”.
+        finished = current.kind == "question" and any(p.kind in ("alternative", "answer_space") for p in current.parts)
+        return finished and bool(_QUOTED_LINE_RE.match(text))
 
     def _split_trailing_alternatives(self, item: TextItem, runs: list[Run]) -> tuple[list[Run], TextItem | None]:
         """Detect "Quantas sílabas…? a) 2  b) 3  c) 4" written on the question line itself."""
@@ -328,6 +416,23 @@ class Segmenter:
                     consumed = end
                     label = next_label
                 pieces.append((label, remaining))
+        elif alt.letter is None and not item.list_label:
+            # "( ) um lugar.	( ) um animal.	( ) uma planta." — options for marking side by side.
+            text = runs_text(after)
+            matches = list(_INLINE_BOX_RE.finditer(text))
+            if matches:
+                pieces = []
+                label = alt.label
+                remaining = after
+                consumed = 0
+                for m in matches:
+                    start, end = m.start("label"), m.end()
+                    head, tail = split_runs(remaining, start - consumed)
+                    pieces.append((label, _rstrip_runs(head)))
+                    _, remaining = split_runs(tail, end - start)
+                    consumed = end
+                    label = m.group("label").strip()
+                pieces.append((label, remaining))
         for i, (label, runs) in enumerate(pieces):
             part = self._part_from_text(item, runs, kind="alternative", label=label)
             if i:
@@ -337,10 +442,13 @@ class Segmenter:
                     "ocr_label_doubtful",
                     f"O rótulo foi lido como “{label}” — provavelmente “{label[-2].lower()})”. Confira e corrija.",
                 ))
-            if len(pieces) > 1 and i == 0 and not any(x.code == "inline_alternatives_split" for x in part.issues):
+            # Tabs between the options (the school's Word layout) are unambiguous: no notice needed.
+            if len(pieces) > 1 and i == 0 and "\t" not in runs_text(after) \
+                    and not any(x.code == "inline_alternatives_split" for x in part.issues):
                 part.issues.append(_issue(
                     "inline_alternatives_split",
-                    "Alternativas que estavam na mesma linha foram separadas, uma por linha.", "info",
+                    "As alternativas estavam na mesma linha e foram reconhecidas uma a uma. Na impressão, as "
+                    "curtas continuam lado a lado.", "info",
                 ))
             self.current.parts.append(part)
 
@@ -350,6 +458,7 @@ class Segmenter:
             asset_id=item.asset_id,
             width_cm=item.width_cm,
             rows=item.rows,
+            table_borders=item.table_borders,
             provenance=item.prov,
             issues=list(item.issues),
         )
@@ -404,12 +513,28 @@ class Segmenter:
     # --------------------------------------------------------------- checks
     def _finalise(self) -> None:
         questions = [b for b in self.blocks if b.kind == "question"]
+        # Compare only lettered alternatives: "( )" options (true/false, association) vary by design.
         alt_counts = Counter(
             sum(1 for p in b.parts if p.kind == "alternative") for b in questions
-            if any(p.kind == "alternative" for p in b.parts)
+            if any(p.kind == "alternative" and _letter(p.label) for p in b.parts)
         )
         typical = alt_counts.most_common(1)[0][0] if alt_counts else None
         for block in self.blocks:
+            # "Cálculo" followed by lines: the caption becomes the label of the answer space.
+            if block.kind == "question" and len(block.parts) >= 2 and block.parts[-1].kind == "answer_space":
+                spaces = []
+                while block.parts and block.parts[-1].kind == "answer_space":
+                    spaces.insert(0, block.parts.pop())
+                caption = block.parts[-1] if block.parts else None
+                if caption is not None and caption.kind == "paragraph" and _WORK_LABEL_RE.match(runs_text(caption.runs)) \
+                        and spaces[-1].answer is not None:
+                    block.parts.pop()
+                    main = next((s for s in reversed(spaces) if s.answer and s.answer.kind == "lines"), spaces[-1])
+                    label = runs_text(caption.runs).strip()[:40]
+                    block.parts.append(main.model_copy(update={"answer": main.answer.model_copy(  # type: ignore[union-attr]
+                        update={"label": label})}))
+                else:
+                    block.parts.extend(spaces)
             # A trailing answer space becomes the question's answer space.
             if block.parts and block.parts[-1].kind == "answer_space" and block.kind == "question":
                 tail = block.parts.pop()
@@ -434,7 +559,7 @@ class Segmenter:
                             f"“{chr(expected)}”). Confira se alguma se perdeu ou se repetiu.",
                         ))
                         break
-            if typical and alternatives and len(alternatives) < typical and alt_counts[typical] >= 2:
+            if typical and letters and len(alternatives) < typical and alt_counts[typical] >= 2:
                 block.issues.append(_issue(
                     "alternatives_count",
                     f"Esta questão tem {len(alternatives)} alternativas; a maioria tem {typical}. "

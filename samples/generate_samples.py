@@ -2,7 +2,8 @@
 
 All content is invented. The set covers objective and open questions, a support text
 shared by two questions, an image, a table, symbols and an equation, Word automatic
-numbering, a two-column PDF, a scanned PDF, phone photos and a low-quality photo.
+numbering, an exam laid out in the school's own Word format, a two-column PDF, a scanned
+PDF, phone photos and a low-quality photo.
 
 Run from the repository root (needs LibreOffice or Word for the PDF samples):
 
@@ -133,6 +134,109 @@ def header_table(doc: Document, title: str) -> None:
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run(title)
     r.bold = True
+
+
+def make_school_standard_docx(path: Path) -> dict:
+    """An exam laid out like the school's own Word files (invented content).
+
+    Header box, centred title, named styles ("Enunciado", "Alternativa"), alternatives side by
+    side with tabs, "( )" options on one line, an association with "(1)/(2)" items and column
+    headings, "Cálculo" over answer lines drawn as paragraph borders, a text credit, a poem in an
+    invisible table and the encouraging closing words.
+    """
+    doc = base_document()
+    section = doc.sections[0]
+    section.top_margin, section.bottom_margin = Cm(1.5), Cm(1.6)
+    section.left_margin = section.right_margin = Cm(1.6)
+    doc.styles["Normal"].font.size = Pt(12)
+    styles = {}
+    for name, bold in (("Enunciado", False), ("Alternativa", False), ("Texto da prova", False),
+                       ("Subtítulo de leitura", True), ("Linha de resposta", False), ("Fonte do estímulo", False)):
+        style = doc.styles.add_style(name, 1)
+        style.base_style = doc.styles["Normal"]
+        style.font.bold = bold
+        styles[name] = style
+    styles["Alternativa"].paragraph_format.left_indent = Cm(0.4)
+    styles["Fonte do estímulo"].font.italic = True
+
+    box = doc.add_table(rows=1, cols=1)
+    box.style = "Table Grid"
+    cell = box.cell(0, 0)
+    cell.paragraphs[0].add_run("ESCOLA MUNICIPAL EXEMPLO DAS FLORES")
+    for line in ("ALUNO(A): ______________________________________",
+                 "DATA: ______/______/2026\tTURMA: 4º ANO ______", "PROFESSORA: ANA SOUZA"):
+        cell.add_paragraph(line)
+    # A second column makes it a real header table (the reader unwraps one-cell boxes).
+    box.add_column(Cm(3)).cells[0].paragraphs[0].add_run("NOTA:")
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.add_run("Avaliação II Unidade - Ciências 4º ano").bold = True
+
+    def para(text: str, style: str, bold_prefix: str = ""):
+        p = doc.add_paragraph(style=styles[style])
+        if bold_prefix:
+            p.add_run(bold_prefix).bold = True
+        p.add_run(text)
+        return p
+
+    def ruled_lines(count: int) -> None:
+        for _ in range(count):
+            p = doc.add_paragraph(style=styles["Linha de resposta"])
+            p._p.get_or_add_pPr().append(parse_xml(
+                f'<w:pBdr xmlns:w="{qn("w:p").split("}")[0][1:]}">'
+                '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+                '<w:between w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:pBdr>'))
+            p.add_run(" ")
+
+    para("Leia o texto e responda às questões 1 e 2:", "Subtítulo de leitura")
+    para("A água da chuva enche os rios e ajuda as plantas a crescer. Quando o sol aparece, "
+         "parte dessa água evapora e volta para as nuvens.", "Texto da prova")
+    para("Texto: Revista Exemplo, 2025", "Fonte do estímulo")
+    para("O texto fala principalmente sobre:", "Enunciado", "1. ")
+    para("A) ( ) a chuva\tB) ( ) o vento", "Alternativa")
+    para("C) ( ) a neve\tD) ( ) o trovão", "Alternativa")
+    para("Assinale com ( V ) para verdadeiro e ( F ) para falso:", "Enunciado", "2. ")
+    for text in ("( ) A água da chuva enche os rios.", "( ) O sol congela a água.",
+                 "( ) A água evapora e volta para as nuvens."):
+        para(text, "Alternativa")
+    para("Relacione as colunas:", "Enunciado", "3. ")
+    para("(1) Animal que voa", "Texto da prova")
+    para("(2) Animal que nada", "Texto da prova")
+    para("( ) peixe", "Alternativa")
+    para("( ) pássaro", "Alternativa")
+    para("A palavra “nuvem” é um:", "Enunciado", "4. ")
+    para("( ) verbo.\t( ) substantivo.\t( ) adjetivo.", "Alternativa")
+    para("Quanto é 125 + 38?", "Enunciado", "5. ")
+    para("A) 153\tB) 163\tC) 173\tD) 183", "Alternativa")
+    para("Cálculo", "Fonte do estímulo")
+    ruled_lines(3)
+    para("Explique por que devemos economizar água.", "Enunciado", "6. ")
+    ruled_lines(2)
+    para("Associe a coluna A com a coluna B:", "Enunciado", "7. ")
+    para("COLUNA A:", "Subtítulo de leitura")
+    para("A) Sol", "Alternativa")
+    para("B) Chuva", "Alternativa")
+    para("COLUNA B:", "Subtítulo de leitura")
+    para("( ) Molha a terra.", "Alternativa")
+    para("( ) Ilumina o dia.", "Alternativa")
+    para("Leia o poema:", "Subtítulo de leitura")
+    poem = doc.add_table(rows=1, cols=2)  # no style: an invisible table that only places the verses
+    poem.cell(0, 0).text = "A nuvem passa\ndevagarinho"
+    poem.cell(0, 1).text = "e deixa a chuva\nno meu caminho"
+    para("O poema fala de:", "Enunciado", "8. ")
+    for text in ("A) uma nuvem e a chuva.", "B) um passarinho.", "C) uma viagem de barco.", "D) uma festa."):
+        para(text, "Alternativa")
+    closing = doc.add_paragraph()
+    closing.add_run("Boa prova!!").bold = True
+    closing = doc.add_paragraph()
+    closing.add_run("Eu acredito em você!").bold = True
+    doc.save(path)
+    return {
+        "questions": ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8."],
+        "alternatives": {"1.": 4, "2.": 3, "3.": 2, "4.": 3, "5.": 4, "7.": 4, "8.": 4},
+        "must_contain": ["(1) Animal que voa", "Texto: Revista Exemplo, 2025", "Boa prova!!",
+                         "Eu acredito em você!", "( ) substantivo."],
+    }
 
 
 def make_math_docx(path: Path) -> dict:
@@ -314,6 +418,7 @@ def main() -> None:
 
     manifest["prova-matematica.docx"] = make_math_docx(out / "prova-matematica.docx")
     manifest["atividade-portugues.docx"] = make_portuguese_docx(out / "atividade-portugues.docx")
+    manifest["prova-padrao-escola.docx"] = make_school_standard_docx(out / "prova-padrao-escola.docx")
 
     math_pdf = to_pdf(out / "prova-matematica.docx", out / "prova-matematica.pdf", settings)
     if math_pdf:

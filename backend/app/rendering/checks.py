@@ -19,6 +19,17 @@ from app.domain.models import Exam, runs_text
 from app.extraction.layout import Word, order_page_lines
 
 A4 = (595.28, 841.89)
+# School standard (study of the school's exams): at most 4 A4 pages for the student and at most
+# 3 images per page, only one of them large (more than a third of the usable height).
+MAX_PAGES = 4
+MAX_IMAGES_PER_PAGE = 3
+# Questions that depend on reading colours in an image ("Lata de lixo azul – plástico"). Words for the
+# student's own colouring ("pinte", "colorir") are left out: the drawing is still printed for them.
+_COLOR_WORDS = re.compile(
+    r"\b(cor|cores|azul|azuis|vermelh[oa]s?|amarel[oa]s?|verde|verdes|laranja|roxo|roxa|rosa|marrom)\b"
+    r"|\blegenda\b.{0,60}\b(colorir|pintar|pinte)\b|\b(colorir|pintar|pinte)\b.{0,60}\blegenda\b",
+    re.IGNORECASE,
+)
 
 
 class CheckResult(BaseModel):
@@ -73,9 +84,17 @@ def run_checks(exam: Exam, pdf_path: str) -> list[CheckResult]:
     layout = exam.layout
     tokens: list[_Token] = []
     page_bottoms: dict[int, float] = {}
+    images_per_page: dict[int, list[float]] = {}  # heights of the images on each page
     with pdfplumber.open(pdf_path) as pdf:
+        page_count = len(pdf.pages)
         for pno, page in enumerate(pdf.pages, 1):
             w, h = float(page.width), float(page.height)
+            image_bottom = 0.0
+            for image in page.images:
+                small_logo = pno == 1 and float(image["top"]) < h * 0.2 and float(image["width"]) < 85
+                if not small_logo and float(image["width"]) > 20 and float(image["height"]) > 20:
+                    images_per_page.setdefault(pno, []).append(float(image["height"]))
+                    image_bottom = max(image_bottom, float(image["bottom"]))
             if abs(w - A4[0]) > 3 or abs(h - A4[1]) > 3:
                 results.append(CheckResult(code="not_a4", severity="error", page=pno,
                                            message=f"A página {pno} não está no tamanho A4."))
@@ -99,7 +118,9 @@ def run_checks(exam: Exam, pdf_path: str) -> list[CheckResult]:
                 for word in line.words:
                     for piece in word.text.split():
                         tokens.append(_Token(piece, pno, word.top, word.bottom, word.x0, word.x1))
-            page_bottoms[pno] = body_bottom
+            # Images below the last line of text also fill the page: a question followed by its
+            # picture is not stranded at the bottom.
+            page_bottoms[pno] = max(body_bottom, image_bottom if image_bottom < footer_zone else 0.0)
             if outside:
                 results.append(CheckResult(code="outside_margin", severity="error", page=pno,
                                            message=f"Há conteúdo fora das margens na página {pno}."))
@@ -170,4 +191,67 @@ def run_checks(exam: Exam, pdf_path: str) -> list[CheckResult]:
                 code="question_spans_pages", severity="info", page=token.page, block_id=loc.block_id,
                 message=f"A questão {loc.label} ocupa mais de uma página.",
             ))
+
+    results += _school_standard_checks(exam, page_count, images_per_page, found, tokens, index_map)
+    return results
+
+
+def _school_standard_checks(exam: Exam, page_count: int, images_per_page: dict[int, list[float]],
+                            found: list[_Located], tokens: list[_Token], index_map: list[int]) -> list[CheckResult]:
+    """Limits from the study of the school's exams: pages, images per page, letter size, colours."""
+    results: list[CheckResult] = []
+    layout = exam.layout
+    if page_count > MAX_PAGES:
+        late = [loc.label for loc in found
+                if loc.index is not None and tokens[index_map[loc.index]].page > MAX_PAGES]
+        where = f" A partir da página {MAX_PAGES + 1} estão: {', '.join(late)}." if late else ""
+        results.append(CheckResult(
+            code="page_limit", severity="warning",
+            message=f"A prova ficou com {page_count} páginas; o padrão da escola é de até {MAX_PAGES} páginas A4."
+                    f"{where} Experimente o estilo “Econômico”, 2 colunas ou revise o espaço das respostas.",
+        ))
+    usable = (29.7 - layout.margins_cm.top - layout.margins_cm.bottom) / 2.54 * 72
+    for pno, heights in sorted(images_per_page.items()):
+        if len(heights) > MAX_IMAGES_PER_PAGE:
+            results.append(CheckResult(
+                code="images_per_page", severity="warning", page=pno,
+                message=f"A página {pno} tem {len(heights)} imagens; o padrão da escola é de no máximo "
+                        f"{MAX_IMAGES_PER_PAGE} por página.",
+            ))
+        large = sum(1 for height in heights if height > usable / 3)
+        if large > 1:
+            results.append(CheckResult(
+                code="large_images_per_page", severity="info", page=pno,
+                message=f"A página {pno} tem {large} imagens grandes; o padrão é no máximo uma grande por página.",
+            ))
+
+    year = re.match(r"\s*(\d)", exam.meta.ano)
+    if year:
+        n = int(year.group(1))
+        minimum = 12 if n <= 5 else 11
+        if layout.font_size < minimum:
+            results.append(CheckResult(
+                code="font_too_small", severity="warning",
+                message=f"Para o {exam.meta.ano}, use letra de pelo menos {minimum} pt "
+                        f"(está em {layout.font_size:g} pt).",
+            ))
+        elif n <= 2 and layout.font_size < 14:
+            results.append(CheckResult(
+                code="font_early_years", severity="info",
+                message="Para 1º e 2º ano, a pesquisa da escola recomenda letra de 14 pt quando couber.",
+            ))
+
+    if layout.grayscale:
+        for block in exam.blocks:
+            if block.kind not in ("question", "support_text"):
+                continue
+            has_image = any(p.kind in ("image", "crop") for p in block.parts)
+            text = " ".join(runs_text(p.runs) for p in block.parts if p.kind in ("paragraph", "alternative"))
+            if has_image and _COLOR_WORDS.search(text):
+                what = f"A questão {block.number}" if block.kind == "question" and block.number else "Um texto de apoio"
+                results.append(CheckResult(
+                    code="colour_in_grayscale", severity="warning", block_id=block.id,
+                    message=f"{what} fala de cores e tem imagem, mas a impressão está em preto e branco. "
+                            "Confira se a imagem continua compreensível ou imprima colorido.",
+                ))
     return results
