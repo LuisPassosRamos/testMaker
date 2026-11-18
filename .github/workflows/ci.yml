@@ -12,13 +12,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: System tools (LibreOffice, Tesseract, fonts)
+        timeout-minutes: 15
         run: |
+          # A stalled mirror download is abandoned after 30 s and retried instead of hanging the job.
+          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' \
+            | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
+          # Skip rebuilding the man page index after installing (minutes on hosted runners).
+          sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-writer-nogui tesseract-ocr tesseract-ocr-por \
             tesseract-ocr-osd fonts-liberation fonts-crosextra-carlito
@@ -54,6 +61,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4

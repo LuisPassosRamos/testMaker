@@ -22,7 +22,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # LibreOffice Writer without GUI, Tesseract, and fonts metric-compatible with Arial,
 # Times New Roman and Calibri (so line breaks match what teachers see in Word).
-RUN apt-get update \
+RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
       libreoffice-writer-nogui \
       tesseract-ocr tesseract-ocr-osd \
