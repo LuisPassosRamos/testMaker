@@ -55,6 +55,23 @@ A paginação usa regras que Word e LibreOffice respeitam: *manter com o próxim
 
 O LibreOffice foi escolhido como conversor principal porque é gratuito, roda igual no Windows e num container Linux — a prévia local será a mesma de uma futura hospedagem. Conversões são serializadas (um perfil isolado, com tempo limite).
 
+#### Padrão da escola
+
+O visual do documento reproduz as provas que a própria escola formata em Word (exemplos reais guardados só localmente, em `referencias/`, fora do Git) e segue as regras de uma análise de cerca de 120 provas da escola:
+
+| Elemento | Como é gerado |
+|---|---|
+| Página | A4, margens 1,5 cm (topo) e 1,6 cm (demais), moldura fina a 24 pt da borda do papel, número da página no canto inferior direito. |
+| Cabeçalho | Quadro com o logotipo em caixa própria e as linhas de identificação em Times New Roman 10,5: nome da escola, `ALUNO(A): ____`, `DATA: ___/___/2026  TURMA: 6º ANO A`, `PROFESSOR(A): …`. Outros campos (Nº, nota, valor, unidade…) podem ser ligados no modelo. |
+| Título | Centralizado, negrito, 14 pt, no formato “Avaliação Final III Trimestre - Matemática 6º ano” (tipo de avaliação, período, disciplina e ano); em maiúsculas no 1º ano. |
+| Questões | Número em negrito seguido do enunciado (estilo “Enunciado”, sem recuo pendente); alternativas com recuo de 0,4 cm (estilo “Alternativa”). |
+| Alternativas | Lado a lado quando cabem, medidas com a fonte real: quatro curtas em uma linha, médias duas a duas (“A) …  B) …” / “C) …  D) …”), três nunca deixam uma sozinha; longas uma por linha. O professor pode forçar “uma por linha” ou “todas na mesma linha”. |
+| Respostas | Linhas contínuas de margem a margem (bordas de parágrafo), com título opcional em itálico (“Cálculo”). |
+| Textos | Créditos (“Fonte:”, “Texto:”, “Disponível em:”) em itálico menor; tabelas invisíveis do original (poemas em colunas) continuam invisíveis. |
+| Final | Mensagem de incentivo opcional em negrito (“Boa prova!”), que não é repetida quando a prova enviada já tem a sua. |
+
+O Word sai com estilos nomeados como os da escola (“Enunciado”, “Alternativa”, “Texto da prova”, “Linha de resposta”…), para ajustes manuais fáceis. Uma questão com texto longo próprio (mais de ~45% da página) pode quebrar dentro do texto, mas o número fica com a primeira linha e o último parágrafo fica com as alternativas.
+
 ### 2. Fidelidade antes de tudo
 
 - **Rótulos verbatim:** `number` e `label` guardam “01 –”, “Questão 3:”, “(B)” exatamente como vieram; nada é renumerado. Ao transformar uma questão em outro tipo, o número volta para o texto em vez de sumir.
@@ -70,8 +87,11 @@ As regras (`structuring/patterns.py` e `segmenter.py`) reconhecem padrões de pr
 
 - a numeração é **sensível à sequência**: “10 - 3 = 7” não vira questão 10; um número muito fora da sequência fica como texto e é sinalizado;
 - instruções numeradas antes das questões não roubam a numeração;
-- alternativas na mesma linha (“a) 2  b) 3  c) 4”) são separadas e sinalizadas;
-- linhas de sublinhado e parágrafos vazios viram espaços de resposta.
+- alternativas na mesma linha (“a) 2  b) 3  c) 4”, “( ) um lugar.→( ) um animal.”) são separadas; só os casos ambíguos (sem tabulação) são sinalizados;
+- itens “(1)”, “(2)” e títulos “COLUNA 2:” de uma associação ficam dentro da questão, em vez de virar questões;
+- “Cálculo” seguido de linhas vira o título do espaço de resposta; créditos do texto (“Texto: …”) ficam com o texto;
+- a frase de incentivo do final (“Boa prova!!”, “Você é capaz!!”) vira um bloco próprio;
+- linhas de sublinhado, linhas desenhadas com borda de parágrafo e parágrafos vazios viram espaços de resposta.
 
 ### 4. Ordem de leitura e OCR
 
@@ -81,7 +101,7 @@ As regras (`structuring/patterns.py` e `segmenter.py`) reconhecem padrões de pr
 
 ### 5. Verificação do PDF exportado
 
-`rendering/checks.py` relê o PDF (na ordem de leitura de colunas) e confere contra o modelo: cada questão e alternativa aparece uma única vez e na ordem; nada fora das margens; páginas A4; número de questão isolado na última linha da página; questões que ocupam mais de uma página; imagens reduzidas demais para caber na coluna. Os avisos aparecem ao lado da prévia com atalho para a questão.
+`rendering/checks.py` relê o PDF (na ordem de leitura de colunas) e confere contra o modelo: cada questão e alternativa aparece uma única vez e na ordem; nada fora das margens; páginas A4; número de questão isolado na última linha da página; questões que ocupam mais de uma página; imagens reduzidas demais para caber na coluna. Também aplica os limites do padrão da escola: até **4 páginas A4** (lista as questões que passaram), até **3 imagens por página** e uma grande, letra mínima por ano (12 pt do 1º ao 5º, 11 pt do 6º ao 9º; 14 pt recomendado no 1º e 2º) e questão que depende de **cores** numa impressão em preto e branco. Os avisos aparecem ao lado da prévia com atalho para a questão.
 
 ### 6. IA opcional e segura
 
@@ -150,6 +170,6 @@ Hospedagem recomendada e passo a passo: [DEPLOY.md](DEPLOY.md).
 
 ## Testes
 
-- **Backend (pytest):** persistência (restauração completa após apagar o disco, em SQLite e em PostgreSQL real via `pgserver`) e código de acesso; validação de envios; extração das provas sintéticas de `samples/` comparada com `expected.json` (nenhuma questão/alternativa perdida, duplicada ou fora de ordem; acentos e símbolos; formatação; imagem e tabela na questão certa; OCR com dúvidas sinalizadas; foto ilegível preservada como imagem); estruturação; DOCX gerado; PDF exportado em 1 e 2 colunas (A4, completo, em ordem, dentro das margens); e-mail via servidor SMTP local; IA com respostas simuladas maliciosas ou incompletas; fluxo completo da API até o e-mail.
+- **Backend (pytest):** persistência (restauração completa após apagar o disco, em SQLite e em PostgreSQL real via `pgserver`) e código de acesso; validação de envios; extração das provas sintéticas de `samples/` comparada com `expected.json` (nenhuma questão/alternativa perdida, duplicada ou fora de ordem; acentos e símbolos; formatação; imagem e tabela na questão certa; OCR com dúvidas sinalizadas; foto ilegível preservada como imagem); estruturação, incluindo uma prova sintética no formato Word da escola (`prova-padrao-escola.docx`); DOCX gerado no padrão da escola (cabeçalho, título, alternativas lado a lado, linhas de resposta, moldura, mensagem final); PDF exportado em 1 e 2 colunas (A4, completo, em ordem, dentro das margens) e limites da escola (páginas, letra, cores); e-mail via servidor SMTP local; IA com respostas simuladas maliciosas ou incompletas; fluxo completo da API até o e-mail.
 - **Frontend (Vitest):** operações de edição que não podem perder texto e conversão de formatação do editor.
 - **Manual:** fluxo completo no navegador (envio, conferência com correção, ajuste em 2 colunas, envio para a caixa de saída), em desktop e celular.
