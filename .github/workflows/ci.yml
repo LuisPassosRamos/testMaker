@@ -80,7 +80,8 @@ jobs:
           assert health["access"]["required"], health
           PY
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/api/projects -H 'Content-Type: application/json' -d '{}')" = "401"
-          curl -fs -c cookies -X POST http://localhost:8000/api/auth/login -H 'Content-Type: application/json' -d '{"code":"CI code"}'
+          # Capital letters do not matter in the school code.
+          curl -fs -c cookies -X POST http://localhost:8000/api/auth/login -H 'Content-Type: application/json' -d '{"code":"CI-Code"}'
           pid=$(curl -fs -b cookies -X POST http://localhost:8000/api/projects -H 'Content-Type: application/json' -d '{"start_mode":"paste"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
           curl -fs -b cookies -X POST "http://localhost:8000/api/projects/$pid/paste" -H 'Content-Type: application/json' \
             -d '{"paragraphs":[[{"text":"1) Quanto é 2 + 2?"}],[{"text":"a) 3"}],[{"text":"b) 4"}]]}' > /dev/null
