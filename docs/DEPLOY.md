@@ -2,13 +2,14 @@
 
 Objetivo: um endereço curto que os professores abrem de qualquer computador ou celular, **sempre no ar e sem custo**, com os dados guardados num banco de dados de verdade.
 
-## A combinação recomendada (gratuita)
+## As combinações possíveis
 
 | Peça | Serviço | Por quê |
 |---|---|---|
-| **Servidor** | Oracle Cloud *Always Free* — máquina Ampere (ARM) em **São Paulo** ou **Vinhedo** | Fica ligado 24 h, tem memória de sobra (vários GB) para ler fotos e gerar PDF, disco persistente e fica perto da escola. |
-| **Banco de dados** | Neon (PostgreSQL) gratuito, região **AWS São Paulo** | Gerenciado, sem cartão, 1 GB por projeto, com histórico para recuperação. Se o servidor um dia mudar, os dados continuam lá. |
-| **Endereço** | DuckDNS — ex.: **provamadre.duckdns.org** | Subdomínio grátis e curto. O HTTPS (cadeado) é automático. |
+| **Servidor (A)** | Heroku, plano **Basic**, pago com o crédito do **GitHub Student Developer Pack** (US$ 13/mês por 24 meses) | Fica ligado 24 h e não exige empresa. O Basic custa até US$ 7/mês (512 MB): com provas reais da escola o app chegou a ~340 MB. Pede cartão cadastrado e só cobra o que passar do crédito. |
+| **Servidor (B)** | Oracle Cloud *Always Free* — máquina Ampere (ARM) em **São Paulo** ou **Vinhedo** | Gratuito e com vários GB de memória, mas em novembro de 2026 o cadastro gratuito para o Brasil só aceitava cliente **corporativo** (nome da empresa). Serve também qualquer outro servidor Ubuntu. |
+| **Banco de dados** | Neon (PostgreSQL) gratuito, na mesma região do servidor (**AWS US East** para o Heroku, **AWS São Paulo** para o caminho B) | Gerenciado, sem cartão, 1 GB por projeto, com histórico para recuperação. Se o servidor um dia mudar, os dados continuam lá. |
+| **Endereço** | Heroku: `provamadre-xxxx.herokuapp.com` · Caminho B: DuckDNS, ex.: **provamadre.duckdns.org** | O DuckDNS só aponta para um IP fixo, então serve apenas no caminho B. No Heroku dá para usar um domínio próprio (o pacote de estudante dá um por 1 ano). O HTTPS é automático nos dois. |
 
 Por que não as alternativas mais “simples”: no Render gratuito o site **dorme** depois de 15 minutos (o primeiro acesso demora ~1 min) e a máquina tem só 0,1 CPU, o que deixa a leitura de fotos e o PDF lentos; o Fly.io e o Railway não têm mais plano grátis contínuo; o Hugging Face passou a restringir apps Docker no plano gratuito. O arquivo [`render.yaml`](../render.yaml) continua disponível para quem quiser o caminho pago mais simples no futuro (Render Starter).
 
@@ -19,10 +20,22 @@ Por que não as alternativas mais “simples”: no Render gratuito o site **dor
 ## 1. Banco de dados (Neon) — 5 minutos
 
 1. Crie a conta em <https://neon.com> (entre com Google ou GitHub; não pede cartão).
-2. **New project** → nome `prova-pronta` → região **AWS South America (São Paulo)** → Postgres mais recente.
+2. **New project** → nome `prova-pronta` → região **AWS US East (N. Virginia)** se o servidor for o Heroku, ou **AWS South America (São Paulo)** no caminho B → Postgres mais recente. Banco e servidor na mesma região deixam cada salvamento mais rápido.
 3. Em **Connect**, copie a *connection string* (começa com `postgresql://` e termina com `sslmode=require`). Guarde: ela é a `DATABASE_URL`.
 
-## 2. Endereço curto (DuckDNS) — 2 minutos
+## Caminho A: Heroku com o pacote de estudante — 20 minutos
+
+1. Com o pacote aprovado, abra <https://education.github.com/pack/offers> → **Heroku** → *Get access by connecting your GitHub account on Heroku*. Crie a conta Heroku, ative a verificação em duas etapas e cadastre o cartão (exigido para receber o crédito).
+2. No painel do Heroku: **New → Create new app** → nome `provamadre` → região **United States**.
+3. O app usa a imagem Docker do repositório ([`heroku.yml`](../heroku.yml)). Mude a *stack* para contêiner uma única vez, com o [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli): `heroku login` e depois `heroku stack:set container -a provamadre`.
+4. **Settings → Config Vars**: `DATABASE_URL` (Neon), `ACCESS_CODE`, `JOB_WORKERS=1` e, para enviar à impressão, `MAIL_MODE=smtp`, `SMTP_USERNAME` e `SMTP_PASSWORD` (senha de app, veja abaixo).
+5. **Deploy → GitHub** → conecte o repositório → **Enable Automatic Deploys** na `main` e clique em **Deploy Branch**. A primeira montagem leva alguns minutos.
+6. **Resources** → troque o tipo de dyno para **Basic** (o Eco dorme quando ninguém usa).
+7. Abra o endereço mostrado em **Open app** e confira `/api/health`.
+
+Atualizações: cada envio para a `main` publica sozinho (depois que o CI passar, se marcar *Wait for CI to pass*).
+
+## Caminho B, passo 2: endereço curto (DuckDNS) — 2 minutos
 
 1. Entre em <https://www.duckdns.org> (login com Google/GitHub).
 2. Crie o subdomínio, por exemplo `provamadre` → o site será `provamadre.duckdns.org`.
@@ -30,9 +43,9 @@ Por que não as alternativas mais “simples”: no Render gratuito o site **dor
 
 > Mais tarde, se a escola quiser um endereço próprio (ex.: `provamadre.com.br`, cerca de R$ 40/ano no registro.br), basta apontar o domínio para o mesmo IP e trocar `SITE_ADDRESS` no `.env`.
 
-## 3. Servidor (Oracle Cloud Always Free) — 20 minutos
+## Caminho B, passo 3: servidor (Oracle Cloud Always Free) — 20 minutos
 
-1. Crie a conta em <https://www.oracle.com/cloud/free/>. Escolha a **região inicial São Paulo ou Vinhedo** (não dá para mudar depois). O cadastro pede um cartão só para verificar identidade; recursos *Always Free* não são cobrados.
+1. Crie a conta em <https://signup.cloud.oracle.com/> (não confunda com o perfil do site oracle.com). No Brasil o formulário só oferece cliente *Corporate*. Escolha a **região inicial São Paulo ou Vinhedo** (não dá para mudar depois). O cadastro pede um cartão só para verificar identidade; recursos *Always Free* não são cobrados.
 2. **Compute → Instances → Create instance**:
    - Image: **Ubuntu 24.04**.
    - Shape: **Ampere → VM.Standard.A1.Flex** com **2 OCPU e 12 GB** (marcado como *Always Free-eligible*). Se aparecer “out of capacity”, tente outro *availability domain* ou mais tarde.
@@ -43,7 +56,7 @@ Por que não as alternativas mais “simples”: no Render gratuito o site **dor
 5. Cole o IP no DuckDNS (campo *current ip*) e clique **update ip**.
 6. **Evite que a máquina seja recolhida por ociosidade:** a Oracle pode desligar instâncias gratuitas muito ociosas. Em **Billing → Upgrade and Manage Payment** faça o *upgrade* para **Pay As You Go**: os recursos *Always Free* continuam gratuitos e a regra de ociosidade deixa de valer. Crie também um **Budget** de R$ 1 com alerta por e-mail, por segurança.
 
-## 4. Instalar o Prova Pronta no servidor — 10 minutos
+## Caminho B, passo 4: instalar o Prova Pronta no servidor — 10 minutos
 
 No seu computador, conecte-se ao servidor (troque o caminho da chave e o IP):
 

@@ -1,0 +1,5 @@
+# Heroku (container stack): builds the same Docker image as CI and the Oracle/Ubuntu setup.
+# The image already listens on $PORT. Secrets (DATABASE_URL, ACCESS_CODE, SMTP_*) are Config Vars.
+build:
+  docker:
+    web: Dockerfile
