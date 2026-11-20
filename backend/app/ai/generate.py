@@ -266,9 +266,11 @@ def question_block(item: GenItem, number: str) -> Block:
     if fmt == "verdadeiro_falso":
         for text in item.afirmacoes or item.alternativas:
             block.parts.append(_alternative("( )", re.sub(r"^\s*\(\s*[VFvf]?\s*\)\s*", "", text)))
+        block.alternatives_layout = "list"  # statements are sentences: one per line
     if fmt == "ordenacao":
         for text in item.afirmacoes or item.alternativas:
             block.parts.append(_alternative("( )", text))
+        block.alternatives_layout = "list"
     if fmt == "associacao":
         left = [f"{i}. {t.strip()}" for i, t in enumerate(item.coluna_a, 1)]
         right = [f"(   ) {re.sub(r'^\s*\(\s*\d*\s*\)\s*', '', t).strip()}" for t in item.coluna_b]
