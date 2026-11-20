@@ -11,8 +11,10 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES
 
 from app import __version__
 from app.api import ai, auth, projects, renders, system, templates
@@ -26,6 +28,11 @@ from app.persistence import Database
 from app.templates_store import TemplateStore
 
 log = logging.getLogger("prova_pronta")
+
+ALREADY_COMPRESSED = (
+    "application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -66,6 +73,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"],
     )
+    # Slow school and home connections: the site's script is ~900 KB and shrinks to about a quarter.
+    # PDF, Word files and images are already compressed, so they go as they are.
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6,
+                       exclude_content_types=(*DEFAULT_EXCLUDED_CONTENT_TYPES, *ALREADY_COMPRESSED))
 
     @app.middleware("http")
     async def security_and_logging(request: Request, call_next):
@@ -83,6 +94,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         if request.url.path.startswith("/api/") and "Cache-Control" not in response.headers:
             response.headers["Cache-Control"] = "no-store"
+        elif path.startswith("/assets/") and response.status_code in (200, 206):
+            # Built files have a content hash in their names: a new version gets a new name.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         if request.url.path.startswith("/api/"):
             # Paths carry only random ids; no query strings or bodies are logged.
             log.info("%s %s %s %.0fms", request.method, request.url.path, response.status_code,
