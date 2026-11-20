@@ -10,8 +10,8 @@ import pytest
 from pydantic import SecretStr
 
 from app.ai.base import AiError, call_json, extract_json
-from app.ai.heroku import HerokuInferenceModel
 from app.ai.organize import OrganizeReply, _signature, organize_blocks
+from app.ai.providers import PROVIDERS, build_entry
 from app.ai.reading import organize_with_ai
 from app.domain.models import ExamMeta, runs_text
 from app.structuring.paste import pasted_items, plain_text_paragraphs
@@ -193,7 +193,8 @@ def test_title_parser_reads_school_titles(title, expected):
 def _heroku(settings, handler):
     configured = settings.model_copy(update={
         "inference_url": "https://inference.example", "inference_key": SecretStr("k"), "ai_provider": "heroku"})
-    return HerokuInferenceModel(configured, "read", transport=httpx.MockTransport(handler))
+    return build_entry(configured, PROVIDERS["heroku"], "claude-haiku-5-5", "read",
+                       transport=httpx.MockTransport(handler))
 
 
 def test_heroku_client_streams_and_joins_the_reply(settings):
@@ -211,11 +212,12 @@ def test_heroku_client_streams_and_joins_the_reply(settings):
     assert model.generate_json("sistema", ["[1] Boa prova!"], OrganizeReply) == '{"papeis": ["outro"]}'
     assert seen["auth"] == "Bearer k"
     assert seen["body"]["model"] == "claude-haiku-5-5" and seen["body"]["stream"] is True
+    assert seen["body"]["max_completion_tokens"] == 4096, "Heroku names the reply limit like OpenAI's new API"
     assert seen["body"]["messages"][1]["content"] == "[1] Boa prova!"
     assert "JSON Schema" in seen["body"]["messages"][0]["content"]
 
 
-@pytest.mark.parametrize(("status", "words"), [(401, "chave"), (429, "pedidos demais"), (500, "não respondeu")])
+@pytest.mark.parametrize(("status", "words"), [(401, "chave"), (429, "limite de uso"), (500, "não respondeu")])
 def test_heroku_errors_become_teacher_friendly_messages(settings, status, words):
     model = _heroku(settings, lambda request: httpx.Response(status, text="erro"))
     with pytest.raises(AiError, match=words):

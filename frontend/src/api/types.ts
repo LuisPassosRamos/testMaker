@@ -280,7 +280,9 @@ export interface Health {
   ocr: { available: boolean; version: string | null; message: string }
   ai: {
     enabled: boolean
-    provider: 'heroku' | 'gemini' | null
+    /** First service in the chain; `providers` lists every configured one, in order. */
+    provider: string | null
+    providers: string[]
     model: string | null
     model_write: string | null
     /** Where exam content goes, in plain words for teachers. */

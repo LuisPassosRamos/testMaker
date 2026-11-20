@@ -46,8 +46,10 @@ def organize_with_ai(blocks: list[Block], meta: ExamMeta, settings: Settings, us
         log.warning("AI organise failed: %s", exc.__class__.__name__)
         return ReadingOutcome(blocks=blocks, notes=[_fallback_note(
             "A organização com IA não funcionou agora; foi usada a leitura automática simples.")])
-    summary = ("Organização conferida pela IA: nada precisou mudar." if not result.changed else
-               f"Organização conferida pela IA: {result.changed} trecho(s) reorganizado(s).")
+    label = getattr(model, "last_used", None)
+    used = f" · {label}" if label else ""
+    summary = (f"Organização conferida pela IA{used}: nada precisou mudar." if not result.changed else
+               f"Organização conferida pela IA{used}: {result.changed} trecho(s) reorganizado(s).")
     return ReadingOutcome(blocks=result.blocks, has_closing=result.has_closing, meta_filled=result.meta_filled,
                           change=ChangeEntry(kind="structure", summary=summary), used_ai=True)
 

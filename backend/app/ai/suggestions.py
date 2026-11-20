@@ -1,8 +1,6 @@
-"""Optional AI assistant (Google Gemini) for reviewing structure and OCR.
+"""Suggestions one by one in the detailed editor: structure labels and OCR character fixes.
 
-Never required: the basic flow is fully deterministic. When enabled
-(``GEMINI_API_KEY``), every call needs explicit consent from the user because the
-exam content is sent to Google. The model only *suggests*: it returns labels and
+Never required. Every call needs explicit consent in the request. The model only *suggests*: it returns labels and
 corrections tied to part ids, which we validate strictly (unknown ids, reordering,
 rewrites or long edits are rejected) and the teacher accepts one by one. Text inside
 the exam is treated as data — the system prompt says so and the output schema leaves
@@ -14,17 +12,16 @@ from __future__ import annotations
 import difflib
 import json
 import logging
-from typing import Literal, Protocol
+from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
-from app.ai.base import AiError, AiUnavailable
-from app.config import Settings
+from app.ai.base import AiError, AiUnavailable, JsonModel
 from app.domain.models import Block, Exam, Part, runs_text
 
 log = logging.getLogger(__name__)
 
-__all__ = ["AiError", "AiUnavailable", "GeminiModel", "review_ocr", "suggest_structure"]
+__all__ = ["AiError", "AiUnavailable", "JsonModel", "Suggestion", "review_ocr", "suggest_structure"]
 
 Role = Literal["header", "instruction", "support_text", "question_start", "question_text", "alternative", "other"]
 
@@ -57,46 +54,6 @@ class Suggestion(BaseModel):
     action: str | None = None  # make_alternative | make_paragraph | split_as_question | split_as_support | replace_text
     original: str | None = None
     suggestion: str | None = None
-
-
-class JsonModel(Protocol):
-    def generate_json(self, system: str, contents: list, schema: type[BaseModel]) -> str: ...
-
-
-class GeminiModel:
-    """Thin wrapper around google-genai so tests can inject a fake."""
-
-    def __init__(self, settings: Settings):
-        if not settings.gemini_configured:
-            raise AiUnavailable("A assistência por IA não está configurada.")
-        try:
-            from google import genai
-            from google.genai import types
-        except ImportError as exc:  # optional dependency
-            raise AiUnavailable("Instale o pacote opcional: pip install -e .[ai]") from exc
-        self._types = types
-        self._client = genai.Client(
-            api_key=settings.gemini_api_key.get_secret_value(),  # type: ignore[union-attr]
-            http_options=types.HttpOptions(timeout=settings.gemini_timeout_s * 1000),
-        )
-        self._model = settings.gemini_model
-
-    def generate_json(self, system: str, contents: list, schema: type[BaseModel]) -> str:
-        types = self._types
-        parts = [
-            types.Part.from_bytes(data=c[1], mime_type=c[0]) if isinstance(c, tuple) else c for c in contents
-        ]
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=parts,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                temperature=0,
-                response_mime_type="application/json",
-                response_schema=schema,
-            ),
-        )
-        return response.text or ""
 
 
 SYSTEM_STRUCTURE = """Você ajuda a ORGANIZAR provas escolares brasileiras. Você NÃO escreve, NÃO resolve e NÃO corrige questões.

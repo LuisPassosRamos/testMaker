@@ -10,7 +10,7 @@ from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import AuthResult
 from pydantic import SecretStr
 
-from app.ai.gemini import AiError, review_ocr, suggest_structure
+from app.ai.suggestions import AiError, review_ocr, suggest_structure
 from app.domain.models import Block, Exam, Part, Provenance, Run
 from app.mail.mailer import PrintRequest, build_message, send_message
 

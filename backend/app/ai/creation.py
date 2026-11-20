@@ -28,6 +28,12 @@ Progress = Callable[[str, float, str], None]
 ACTION_LABELS = {"trocar": "trocada por outra", "mais_facil": "deixada mais fácil", "mais_dificil": "deixada mais difícil"}
 
 
+def _used(model: object) -> str:
+    """Which service answered (recorded in the change log; useful when free services take turns)."""
+    label = getattr(model, "last_used", None)
+    return f" · {label}" if label else ""
+
+
 def run_generation(store: ProjectStore, settings: Settings, pid: str, progress: Progress,
                    model: JsonModel | None = None) -> None:
     project = store.load(pid)
@@ -46,6 +52,7 @@ def run_generation(store: ProjectStore, settings: Settings, pid: str, progress: 
     progress("build", 0.92, "Montando a prova…")
     blocks, key, notes = to_exam_parts(result)
     questions = sum(1 for b in blocks if b.kind == "question")
+    used = _used(model)
 
     def apply(p: Project) -> None:
         p.exam.blocks = blocks
@@ -53,7 +60,7 @@ def run_generation(store: ProjectStore, settings: Settings, pid: str, progress: 
         p.exam.document_issues = notes
         if p.exam.meta.doc_type == "prova":
             p.exam.meta.mensagem_final = (result.mensagem_final or "Boa prova!").strip()[:200]
-        p.exam.changes.append(ChangeEntry(kind="content", summary=f"Prova criada com IA ({questions} questões)."))
+        p.exam.changes.append(ChangeEntry(kind="content", summary=f"Prova criada com IA ({questions} questões){used}."))
         for source in p.sources:
             if source.role == "material":
                 source.extracted = True
@@ -69,8 +76,10 @@ def run_regenerate(store: ProjectStore, settings: Settings, pid: str, block_id: 
         raise AiError("Esta questão não existe mais. Recarregue a página.")
     others = [block_text(b) for b in project.exam.blocks if b.kind == "question" and b.id != block_id]
     progress("ai", 0.2, "Escrevendo uma nova versão da questão…")
-    item = regenerate_question(model or get_model(settings, "write"), project.exam.meta, project.generation,
-                               block_text(block), action, others)  # type: ignore[arg-type]
+    model = model or get_model(settings, "write")
+    item = regenerate_question(model, project.exam.meta, project.generation, block_text(block), action,
+                               others)  # type: ignore[arg-type]
+    used = _used(model)
     new = question_block(item, block.number or "")
     new.id = block.id
     new.page_break_before = block.page_break_before
@@ -88,7 +97,8 @@ def run_regenerate(store: ProjectStore, settings: Settings, pid: str, block_id: 
         p.exam.answer_key.append(entry)
         p.exam.answer_key.sort(key=lambda e: order.get(e.block_id, 10_000))
         p.exam.changes.append(ChangeEntry(kind="content", block_id=block_id,
-                                          summary=f"Questão {block.number or ''} {ACTION_LABELS.get(action, 'alterada')} (IA)."))
+                                          summary=f"Questão {block.number or ''} {ACTION_LABELS.get(action, 'alterada')} "
+                                                  f"(IA{used})."))
 
     store.mutate(pid, apply)
 
@@ -98,9 +108,11 @@ def run_organize(store: ProjectStore, settings: Settings, pid: str, progress: Pr
     project = store.load(pid)
     progress("ai", 0.2, "Conferindo a organização com inteligência artificial…")
     meta = project.exam.meta.model_copy()
-    result = organize_blocks(project.exam.blocks, model or get_model(settings, "read"), meta)
-    summary = ("Organização conferida pela IA: nada precisou mudar." if not result.changed else
-               f"Organização conferida pela IA: {result.changed} trecho(s) reorganizado(s).")
+    model = model or get_model(settings, "read")
+    result = organize_blocks(project.exam.blocks, model, meta)
+    used = _used(model)
+    summary = (f"Organização conferida pela IA{used}: nada precisou mudar." if not result.changed else
+               f"Organização conferida pela IA{used}: {result.changed} trecho(s) reorganizado(s).")
 
     def apply(p: Project) -> None:
         p.exam.blocks = result.blocks

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.ai.base import AiError, AiUnavailable
 from app.ai.creation import run_generation, run_organize, run_regenerate
 from app.ai.factory import get_model
-from app.ai.gemini import Suggestion, review_ocr, suggest_structure
+from app.ai.suggestions import Suggestion, review_ocr, suggest_structure
 from app.api.deps import Services, api_error, load_project, services
 from app.domain.models import GenerationRequest, JobState, Project
 from app.jobs import JobBusy

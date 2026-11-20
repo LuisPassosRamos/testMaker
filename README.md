@@ -93,13 +93,13 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 2. Crie uma *senha de app* em <https://myaccount.google.com/apppasswords>.
 3. No `.env`: `MAIL_MODE=smtp`, `SMTP_USERNAME=conta@gmail.com`, `SMTP_PASSWORD=senha-de-app`.
 
-**Inteligência artificial:** no Heroku, ligue o add-on *Managed Inference* (passo a passo em [docs/DEPLOY.md](docs/DEPLOY.md#ativar-a-intelig%C3%AAncia-artificial)); ele preenche `INFERENCE_URL` e `INFERENCE_KEY` sozinho. Os modelos são Claude Haiku 5.5 (organizar) e Claude Sonnet 5.5 (criar), trocáveis por `AI_MODEL_READ` e `AI_MODEL_WRITE`. Como alternativa, `GEMINI_API_KEY` usa o Gemini. Sem nenhum dos dois, a IA fica desligada, nada sai do computador e o site funciona com a leitura por regras.
+**Inteligência artificial:** cole chaves grátis de um ou mais serviços (`GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`). Eles formam uma fila com troca automática: quando um atinge o limite do dia, o próximo responde. O Claude pelo Heroku (`INFERENCE_URL`/`INFERENCE_KEY`, add-on *Managed Inference*) entra em primeiro lugar quando estiver disponível. Passo a passo em [docs/DEPLOY.md](docs/DEPLOY.md). Sem nenhuma chave, a IA fica desligada, nada sai do computador e o site funciona com a leitura por regras.
 
 ---
 
 ## Privacidade e segurança
 
-- O conteúdo só vai à IA quando ela está ligada no servidor, e a tela diz para onde vai (“A leitura e a criação usam IA (Claude) pelo Heroku. O conteúdo não é guardado nem usado para treinar a IA.”). Cada prova enviada pode ser lida **sem IA**. Instruções escritas dentro dos documentos são tratadas como conteúdo, nunca como comandos. No servidor, os dados ficam no seu banco PostgreSQL.
+- O conteúdo só vai à IA quando ela está ligada no servidor, e a tela diz para onde vai e se o serviço pode usar o conteúdo (serviços grátis podem: a tela pede para não colocar nomes de alunos). Cada prova enviada pode ser lida **sem IA**. Instruções escritas dentro dos documentos são tratadas como conteúdo, nunca como comandos. No servidor, os dados ficam no seu banco PostgreSQL.
 - Na internet, o site exige o código da escola em toda a API, limita tentativas de login e envios por hora e usa HTTPS.
 - Arquivos enviados são tratados como não confiáveis: o tipo é identificado pelo conteúdo, há limites de tamanho/páginas/resolução, arquivos com macro são recusados e há proteção contra arquivos compactados maliciosos.
 - Provas não alteradas há mais de 72 h (configurável) são apagadas automaticamente, junto com os e-mails de teste.
@@ -166,5 +166,5 @@ A API documentada fica em <http://localhost:8000/api/docs>. Decisões técnicas,
 - **Output:** a single layout engine — python-docx — produces the school-standard Word file; LibreOffice (or MS Word) converts it to PDF; the preview *is* that PDF, and automatic checks compare it with the model (missing/duplicated/reordered questions, margins, A4, orphaned question numbers).
 - **Delivery:** e-mail to the print room via SMTP (local outbox by default).
 - **Hosting:** one Docker image (API, web app, LibreOffice, Tesseract) on Heroku's container stack (or behind Caddy on any Ubuntu VM), PostgreSQL on Neon as the durable store (local disk is a cache, so ephemeral hosts work too), a shared school access code with signed cookies, and CI that builds and smoke-tests the image.
-- **AI (Heroku Managed Inference / Claude, or Gemini):** creates exams from the teacher's content following a generation manual distilled from 119 real exams (with a teacher-only answer key), and labels each line of an uploaded exam by number; parts are regrouped deterministically and the text signature must not change, otherwise the rule-based reading is kept. Document text is always sent as data. Without AI configured, everything still works rule-based.
+- **AI (a fallback chain of free OpenAI-compatible services — Gemini, Groq, Mistral, OpenRouter — with Claude via Heroku first when available):** creates exams from the teacher's content following a generation manual distilled from 119 real exams (with a teacher-only answer key), and labels each line of an uploaded exam by number; parts are regrouped deterministically and the text signature must not change, otherwise the rule-based reading is kept. Document text is always sent as data. Without AI configured, everything still works rule-based.
 

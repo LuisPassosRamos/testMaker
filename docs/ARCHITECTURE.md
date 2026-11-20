@@ -37,7 +37,7 @@ Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova
 | `domain/` | Modelo intermediário (Pydantic) compartilhado por todas as etapas. |
 | `rendering/` | Geração do DOCX (python-docx), conversão para PDF, prévias, verificações automáticas, fontes disponíveis. |
 | `mail/` | Montagem e envio do e-mail para a impressão. |
-| `ai/` | Provedores (Heroku Managed Inference/Claude ou Gemini) com JSON validado; `organize` (papéis por linha, reagrupamento determinístico com assinatura de texto), `generate` + `manual_geracao.md` (criar provas e gabarito), `materials` (texto e páginas do material do professor), `creation` (tarefas em segundo plano). |
+| `ai/` | `openai_compat` (um cliente em streaming para todos os serviços), `providers` (Heroku, Gemini, Groq, Mistral, OpenRouter e a fila por tarefa), `base` (JSON validado e fila com troca automática e descanso de quem atingiu o limite); `organize` (papéis por linha, reagrupamento determinístico com assinatura de texto), `generate` + `manual_geracao.md` (criar provas e gabarito), `materials` (texto e páginas do material do professor), `creation` (tarefas em segundo plano). |
 | `persistence.py` | PostgreSQL (ou SQLite) opcional: projetos, arquivos essenciais e modelos de cabeçalho. |
 | `auth.py` | Código da escola, sessão assinada em cookie e limites de tentativas/envios. |
 | `api/`, `jobs.py`, `main.py` | Rotas HTTP, tarefas em segundo plano com progresso, app e arquivos estáticos. |
@@ -110,7 +110,7 @@ As regras (`structuring/patterns.py` e `segmenter.py`) reconhecem padrões de pr
 
 O público do site é, em grande parte, de professores com pouca familiaridade com tecnologia: o fluxo precisa ser quase todo automático. Por isso a IA faz o trabalho e o professor confere com um ou dois cliques. Ainda assim, **nada depende dela**: sem IA configurada (ou se ela falhar), o site usa as regras determinísticas.
 
-- **Provedor.** `AI_PROVIDER=auto` usa o Heroku Managed Inference quando o add-on está ligado (`INFERENCE_URL`/`INFERENCE_KEY`), senão o Gemini (`GEMINI_API_KEY`). No Heroku as chamadas são em *streaming* (o roteador corta chamadas sem streaming após ~29 s) e pedem JSON em texto (uma chamada de ferramenta é limitada a 55 s). Modelos: Claude Haiku 5.5 para organizar e Claude Sonnet 5.5 para criar.
+- **Serviços e fila.** Todos falam o protocolo de *chat completions* da OpenAI, então um único cliente (`ai/openai_compat.py`) atende Heroku Managed Inference (Claude), Gemini, Groq, Mistral e OpenRouter. Cada serviço com chave entra na fila da tarefa (`AI_CHAIN_READ` para organizar, `AI_CHAIN_WRITE` para criar; pares `serviço:modelo`). Um 429 (cota), erro, resposta cortada ou JSON inválido (depois de uma nova tentativa) passa para o próximo; quem deu 429 descansa pelo `retry-after` ou 15 minutos. Serviços sem visão recebem só o texto do material. As chamadas são em *streaming* (o Heroku corta chamadas sem streaming após ~29 s) e pedem JSON em texto. Os limites de resposta são por serviço (o Groq grátis tem 8 mil tokens por minuto). O histórico de alterações registra qual serviço respondeu.
 - **Dados, não comandos.** Todo texto de documento vai na mensagem do usuário, entre marcadores, e o prompt de sistema manda tratar instruções dentro dele como conteúdo. Toda resposta é validada com Pydantic; uma resposta inválida recebe uma nova tentativa explicando o erro e depois é descartada.
 - **Organizar (provas enviadas).** Depois das regras, a IA recebe as linhas numeradas (`[n] texto`, imagens e tabelas como marcadores) e devolve **só um papel por linha**, dúvidas (viram perguntas de sim/não) e os dados do título. As mesmas partes são reagrupadas deterministicamente, rótulos voltam ao texto quando deixam de ser rótulos, e a **assinatura do texto** (todo o texto em ordem, sem espaços) precisa ser idêntica antes e depois; senão, fica a leitura por regras com um aviso.
 - **Criar.** O pedido do professor e o material enviado (Word, PDF e fotos; as fotos também vão como imagem) seguem com o `ai/manual_geracao.md`, um resumo das regras da pesquisa com 119 provas reais (sem textos de provas, nomes ou links). A resposta vira os mesmos blocos de sempre e o gabarito fica em `Exam.answer_key`, impresso num arquivo separado que nunca vai no e-mail da impressão. Refazer uma questão (outra, mais fácil, mais difícil) troca só aquele bloco e a entrada do gabarito.
@@ -152,8 +152,7 @@ Escolhidas pela licença permissiva, suporte a Windows sem compilação e docume
 | Tesseract 5 + `por` (tessdata_best) | OCR | Apache-2.0 | Binário instalado à parte (UB Mannheim no Windows, apt no Linux). |
 | pytesseract, OpenCV (headless), NumPy, Pillow | pré-processamento e chamada do OCR | Apache-2.0 / BSD / HPND | — |
 | LibreOffice | DOCX → PDF | MPL-2.0 | Alternativa: Microsoft Word via pywin32 (só Windows). |
-| httpx | Cliente da IA do Heroku (streaming) | BSD-3-Clause | Também usado nos testes. |
-| google-genai (opcional) | Gemini | Apache-2.0 | Modelo configurável (`GEMINI_MODEL`). |
+| httpx | Cliente das IAs (streaming, compatível com OpenAI) | BSD-3-Clause | Também usado nos testes. |
 | psycopg 3 | PostgreSQL | LGPL-3.0 | Usado como biblioteca, sem modificações. |
 | Caddy | proxy reverso e HTTPS automático | Apache-2.0 | Só no servidor. |
 | React 19, React Router, Zustand | interface e estado | MIT | — |

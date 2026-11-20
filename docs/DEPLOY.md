@@ -35,16 +35,25 @@ Por que não as alternativas mais “simples”: no Render gratuito o site **dor
 
 Atualizações: cada envio para a `main` publica sozinho (depois que o CI passar, se marcar *Wait for CI to pass*).
 
-### Ativar a inteligência artificial
+### Ativar a inteligência artificial (grátis, com troca automática)
 
-A IA (criar provas e organizar as enviadas) usa o **Heroku Managed Inference**, add-on do próprio Heroku com modelos Claude hospedados na AWS. O Heroku não guarda os textos e não os usa para treinar modelos. A cobrança é por uso; o crédito de estudante cobre produtos do Heroku, e o que passar dos US$ 13/mês vai para o cartão.
+A IA (criar provas e organizar as enviadas) usa uma **fila de serviços**: cada serviço com chave configurada entra na fila; quando um atinge o limite grátis do dia, falha ou responde algo inválido, o próximo é usado sozinho, e quem atingiu o limite descansa um tempo antes de ser tentado de novo. Com dois ou três serviços, a escola tem IA o dia todo sem custo. Se todos falharem, o site continua funcionando com a leitura por regras.
 
-1. No terminal (com `heroku login` feito): `heroku addons:create heroku-inference:standard -a provamadre`. O add-on cria `INFERENCE_URL` e `INFERENCE_KEY` nas Config Vars e o app reinicia sozinho.
-2. Abra `/api/health`: em `ai` deve aparecer `"enabled": true` e `"provider": "heroku"`.
-3. No site, crie uma prova com IA e formate uma prova enviada. Depois, em **Billing**, confira o consumo do add-on (ou `heroku usage:addons -a provamadre`).
-4. Opcional: `AI_MODEL_READ` (padrão `claude-haiku-5-5`, organizar) e `AI_MODEL_WRITE` (padrão `claude-sonnet-5-5`, criar). `AI_READING=false` desliga a organização automática das provas enviadas.
+| Serviço | Onde criar a chave (grátis, sem cartão) | Config Var | Limite grátis (nov/2026) | Dados |
+|---|---|---|---|---|
+| **Google Gemini** | <https://aistudio.google.com/apikey> | `GEMINI_API_KEY` | Por modelo (Flash e Flash-Lite); veja no AI Studio | O Google **pode usar** o conteúdo no plano grátis |
+| **Groq** | <https://console.groq.com/keys> | `GROQ_API_KEY` | 1.000 pedidos/dia; 8 mil tokens/minuto (serve para **organizar**) | Leia os termos |
+| **Mistral** (opcional; pede celular) | <https://console.mistral.ai/api-keys> | `MISTRAL_API_KEY` | 1 pedido/segundo | Treina no plano grátis: desligue em *Admin → Privacy* |
+| **OpenRouter** (opcional) | <https://openrouter.ai/settings/keys> | `OPENROUTER_API_KEY` | 50 pedidos/dia nos modelos grátis | Depende do modelo; ajuste em *Settings → Privacy* |
 
-Custo aproximado (preços do add-on em nov/2026): organizar uma prova enviada ≈ US$ 0,02 (Haiku 5.5); criar uma prova ≈ US$ 0,10 (Sonnet 5.5). Para desligar a IA: `heroku addons:destroy heroku-inference -a provamadre` (o site volta à leitura por regras).
+1. Crie a conta e a chave em cada serviço que quiser (uma conta por serviço: criar várias contas no mesmo serviço para somar limites viola as regras deles).
+2. No Heroku, **Settings → Reveal Config Vars**, cole cada chave no nome indicado acima. O app reinicia sozinho.
+3. Abra `/api/health`: em `ai` deve aparecer `"enabled": true` e, em `providers`, os serviços na ordem da fila.
+4. No site, crie uma prova com IA. O histórico de alterações mostra qual serviço respondeu (ex.: “Prova criada com IA (10 questões) · Gemini (Google) · gemini-3.8-flash”).
+
+A tela avisa os professores que serviços gratuitos podem usar o conteúdo e pede para não colocar nomes de alunos nas provas. A ordem padrão da fila está em `AI_CHAIN_READ` e `AI_CHAIN_WRITE` (veja o `.env.example`); `AI_READING=false` desliga a organização automática das provas enviadas e `AI_PROVIDER=off` desliga a IA.
+
+**Claude pelo Heroku (opcional, mais tarde).** O add-on *Managed Inference* (`heroku addons:create heroku-inference:standard -a provamadre`) só é liberado para contas com histórico de pagamento. Quando for liberado, ele preenche `INFERENCE_URL` e `INFERENCE_KEY`, entra em primeiro lugar na fila e os serviços grátis viram reserva. O Heroku não guarda os textos nem os usa para treinar modelos; custo aproximado: organizar ≈ US$ 0,02, criar ≈ US$ 0,10 por prova, cobertos pelo crédito de estudante.
 
 ## Caminho B, passo 2: endereço curto (DuckDNS) — 2 minutos
 
