@@ -18,6 +18,8 @@ import pdfplumber
 import pypdfium2 as pdfium
 from PIL import Image
 
+from app.ai.organize import fill_meta
+from app.ai.reading import organize_with_ai
 from app.config import Settings
 from app.domain.models import Issue, Project, Provenance, SourceFile, SourcePage
 from app.extraction.docx_reader import DocxExtractor
@@ -27,6 +29,7 @@ from app.extraction.pdf_reader import PdfTextExtractor, render_page
 from app.importing.storage import ProjectStore
 from app.rendering.converter import ConversionError, converter_status, docx_to_pdf
 from app.structuring.segmenter import segment
+from app.structuring.title import header_text, parse_title
 
 log = logging.getLogger(__name__)
 
@@ -61,13 +64,14 @@ class ExtractionPipeline:
         all_items: list[Item] = []
         doc_issues: list[Issue] = []
         sources = project.sources
-        total = max(1, len(sources))
-        for index, source in enumerate(sources):
+        exam_sources = [s for s in sources if s.role == "exam"]
+        total = max(1, len(exam_sources))
+        for index, source in enumerate(exam_sources):
             def sub_progress(stage: str, fraction: float, message: str, _i: int = index) -> None:
                 progress(stage, (_i + min(max(fraction, 0.0), 1.0)) / total * 0.92, message)
 
             try:
-                items, issues = self._extract_source(pid, source, sub_progress, multi=len(sources) > 1)
+                items, issues = self._extract_source(pid, source, sub_progress, multi=len(exam_sources) > 1)
             except Exception as exc:
                 log.warning("extraction failed for source %s: %s", source.id, exc.__class__.__name__)
                 doc_issues.append(Issue(
@@ -82,7 +86,7 @@ class ExtractionPipeline:
             all_items.extend(items)
             doc_issues.extend(issues)
 
-        progress("structure", 0.95, "Organizando questões e alternativas…")
+        progress("structure", 0.93, "Organizando questões e alternativas…")
         result = segment(all_items)
         if self.used_ocr:
             doc_issues.insert(0, Issue(
@@ -90,13 +94,22 @@ class ExtractionPipeline:
                 message=("Parte do conteúdo foi lida de imagem (OCR). Negrito e itálico não são reconhecidos "
                          "em fotos: reaplique onde for importante (ex.: “INCORRETA”, “EXCETO”)."),
             ))
+        # Subject, year and unit read from the file's title fill what the teacher left empty.
+        meta = project.exam.meta.model_copy()
+        filled = fill_meta(meta, parse_title(header_text(result.blocks)))
+        organized = organize_with_ai(result.blocks, meta, self.settings, project.use_ai, progress)
+        filled += organized.meta_filled
 
         def apply(p: Project) -> None:
             p.sources = sources
-            p.exam.blocks = result.blocks
-            p.exam.document_issues = doc_issues + result.issues
-            if result.has_closing:
+            p.exam.blocks = organized.blocks
+            p.exam.document_issues = doc_issues + organized.notes + result.issues
+            for key in set(filled) | ({"periodo"} if "unidade" in filled else set()):
+                setattr(p.exam.meta, key, getattr(meta, key))
+            if result.has_closing or organized.has_closing:
                 p.exam.meta.mensagem_final = ""  # the file's own closing words are kept; do not repeat them
+            if organized.change is not None:
+                p.exam.changes.append(organized.change)
 
         self.store.mutate(pid, apply)
         self.store.sync_files(pid)

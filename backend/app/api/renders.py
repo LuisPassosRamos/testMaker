@@ -86,6 +86,23 @@ def download(pid: str, rid: str, kind: Literal["pdf", "docx"], inline: bool = Fa
     })
 
 
+@router.get("/{pid}/renders/{rid}/answer-key/{kind}")
+def download_answer_key(pid: str, rid: str, kind: Literal["pdf", "docx"], inline: bool = False,
+                        svc: Services = Depends(services)) -> FileResponse:
+    result = load_render(svc.store, pid, rid)
+    name = (result.answer_key_pdf_name if kind == "pdf" else result.answer_key_docx_name) if result else ""
+    path = svc.store.renders_dir(pid) / rid / f"gabarito.{kind}"
+    if result is None or not name or not path.exists():
+        raise api_error(404, "not_found", "Gabarito não encontrado. Gere a prévia novamente.")
+    media = "application/pdf" if kind == "pdf" else (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    disposition = "inline" if inline and kind == "pdf" else "attachment"
+    return FileResponse(path, media_type=media, headers={
+        "Content-Disposition": f"{disposition}; filename=\"gabarito.{kind}\"; filename*=UTF-8''{quote(name)}",
+        "Cache-Control": "private, no-store",
+    })
+
+
 @router.post("/{pid}/send")
 def send_to_print(pid: str, body: SendRequest, request: Request, svc: Services = Depends(services)) -> dict:
     project = load_project(svc, pid)

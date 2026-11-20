@@ -60,7 +60,20 @@ class Settings(BaseSettings):
     smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
     max_attachment_mb: int = 20
 
-    # Optional AI assistant (Google Gemini). Disabled when no key is set.
+    # AI. "auto" uses Heroku Managed Inference when its add-on is attached (it sets INFERENCE_URL and
+    # INFERENCE_KEY), otherwise Google Gemini when GEMINI_API_KEY is set. Without either, the app works
+    # with the deterministic reader and AI features are hidden.
+    ai_provider: Literal["auto", "heroku", "gemini", "off"] = "auto"
+    inference_url: str | None = None
+    inference_key: SecretStr | None = None
+    # Fast model to organise uploaded exams; stronger model to write new exams.
+    ai_model_read: str = "claude-haiku-5-5"
+    ai_model_write: str = "claude-sonnet-5-5"
+    ai_max_tokens_read: int = Field(4096, ge=256, le=64000)
+    ai_max_tokens_write: int = Field(8192, ge=256, le=64000)
+    ai_timeout_s: int = Field(240, ge=10, le=900)
+    # Organise every uploaded exam with AI automatically (teachers can still choose "ler sem IA").
+    ai_reading: bool = True
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.6-flash"
     gemini_timeout_s: int = 90
@@ -98,8 +111,26 @@ class Settings(BaseSettings):
         return bool(self.access_code and self.access_code.get_secret_value().strip())
 
     @property
-    def ai_enabled(self) -> bool:
+    def heroku_ai_configured(self) -> bool:
+        return bool(self.inference_url and self.inference_key and self.inference_key.get_secret_value().strip())
+
+    @property
+    def gemini_configured(self) -> bool:
         return bool(self.gemini_api_key and self.gemini_api_key.get_secret_value().strip())
+
+    @property
+    def ai_backend(self) -> Literal["heroku", "gemini"] | None:
+        if self.ai_provider == "off":
+            return None
+        if self.ai_provider in ("auto", "heroku") and self.heroku_ai_configured:
+            return "heroku"
+        if self.ai_provider in ("auto", "gemini") and self.gemini_configured:
+            return "gemini"
+        return None
+
+    @property
+    def ai_enabled(self) -> bool:
+        return self.ai_backend is not None
 
 
 @lru_cache

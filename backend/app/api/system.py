@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app import __version__
+from app.ai.factory import ai_description
 from app.api.deps import Services, services
 from app.extraction.ocr import ocr_status
 from app.rendering.converter import converter_status
@@ -23,7 +24,7 @@ def health(svc: Services = Depends(services)) -> dict:
         "version": __version__,
         "converter": {"available": converter.available, "engine": converter.engine, "message": converter.message},
         "ocr": {"available": ocr.available, "version": ocr.version, "message": ocr.message},
-        "ai": {"enabled": s.ai_enabled, "model": s.gemini_model if s.ai_enabled else None},
+        "ai": ai_description(s),
         "database": {"configured": svc.db is not None, "ok": svc.db.ping() if svc.db else None},
         "access": {"required": s.access_required},
         "mail": {"mode": s.mail_mode, "to": s.mail_to},

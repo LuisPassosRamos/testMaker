@@ -18,20 +18,15 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ValidationError
 
+from app.ai.base import AiError, AiUnavailable
 from app.config import Settings
 from app.domain.models import Block, Exam, Part, runs_text
 
 log = logging.getLogger(__name__)
 
+__all__ = ["AiError", "AiUnavailable", "GeminiModel", "review_ocr", "suggest_structure"]
+
 Role = Literal["header", "instruction", "support_text", "question_start", "question_text", "alternative", "other"]
-
-
-class AiUnavailable(Exception):
-    pass
-
-
-class AiError(Exception):
-    pass
 
 
 class _StructureItem(BaseModel):
@@ -72,7 +67,7 @@ class GeminiModel:
     """Thin wrapper around google-genai so tests can inject a fake."""
 
     def __init__(self, settings: Settings):
-        if not settings.ai_enabled:
+        if not settings.gemini_configured:
             raise AiUnavailable("A assistência por IA não está configurada.")
         try:
             from google import genai

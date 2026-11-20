@@ -68,7 +68,7 @@ def merge_runs(runs: list[Run]) -> list[Run]:
 # ------------------------------------------------------------------- provenance
 
 
-Method = Literal["docx", "pdf_text", "ocr", "paste", "manual", "crop"]
+Method = Literal["docx", "pdf_text", "ocr", "paste", "manual", "crop", "ai"]
 
 
 class Provenance(BaseModel):
@@ -247,6 +247,29 @@ class ChangeEntry(BaseModel):
     block_id: str | None = None
 
 
+class AnswerKeyEntry(BaseModel):
+    """Expected answer of one question (teacher only: printed in a separate answer key)."""
+
+    block_id: str
+    number: str = ""
+    answer: str = Field("", max_length=2000)
+    criteria: str = Field("", max_length=2000)
+    points: str = Field("", max_length=20)
+    skill: str = Field("", max_length=300)
+    demand: str = Field("", max_length=20)
+
+
+class GenerationRequest(BaseModel):
+    """What the teacher asked the AI to create (kept so a new version can be made)."""
+
+    conteudo: str = Field("", max_length=6000)  # topics, skills, what was taught
+    quantidade: int | None = Field(None, ge=1, le=30)  # None: the manual's range for the year
+    formato: Literal["misturado", "objetivas", "abertas"] = "misturado"
+    nivel: Literal["facil", "normal", "desafiador"] = "normal"
+    com_texto_apoio: bool = True
+    observacoes: str = Field("", max_length=2000)
+
+
 class Exam(BaseModel):
     meta: ExamMeta = Field(default_factory=ExamMeta)
     blocks: list[Block] = Field(default_factory=list)
@@ -254,6 +277,7 @@ class Exam(BaseModel):
     header: HeaderConfig = Field(default_factory=HeaderConfig)
     changes: list[ChangeEntry] = Field(default_factory=list)
     document_issues: list[Issue] = Field(default_factory=list)
+    answer_key: list[AnswerKeyEntry] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------- project
@@ -280,6 +304,8 @@ class SourceFile(BaseModel):
     size: int
     pages: list[SourcePage] = Field(default_factory=list)
     extracted: bool = False
+    # "exam": the exam to format · "material": lesson plan, notebook photo… used to create an exam with AI
+    role: Literal["exam", "material"] = "exam"
 
 
 JobStatus = Literal["idle", "running", "done", "failed"]
@@ -287,7 +313,7 @@ JobStatus = Literal["idle", "running", "done", "failed"]
 
 class JobState(BaseModel):
     id: str = Field(default_factory=lambda: new_id("j"))
-    kind: Literal["extract", "render"] = "extract"
+    kind: Literal["extract", "render", "organize", "generate"] = "extract"
     status: JobStatus = "idle"
     stage: str = ""
     message: str = ""
@@ -309,7 +335,10 @@ class Project(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
     revision: int = 0
-    start_mode: Literal["upload", "paste", "blank"] = "upload"
+    start_mode: Literal["upload", "paste", "blank", "generate"] = "upload"
+    # Organise uploaded/pasted exams with AI when the server has it ("ler sem IA" turns it off).
+    use_ai: bool = True
+    generation: GenerationRequest | None = None
     exam: Exam = Field(default_factory=Exam)
     sources: list[SourceFile] = Field(default_factory=list)
     job: JobState | None = None

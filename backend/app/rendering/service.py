@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from app.config import Settings
 from app.importing.storage import ProjectStore, write_json
+from app.rendering.answer_key import answer_key_filename, render_answer_key
 from app.rendering.checks import CheckResult, run_checks
 from app.rendering.converter import docx_to_pdf
 from app.rendering.docx_writer import DocxRenderer, safe_filename
@@ -37,6 +38,9 @@ class RenderResult(BaseModel):
     docx_name: str
     pdf_name: str
     created_at: float
+    # Teacher-only answer key (exams created with AI), never sent to the print team.
+    answer_key_pdf_name: str = ""
+    answer_key_docx_name: str = ""
 
 
 def render_key(project_revision: int, exam_json: str, template_json: str) -> str:
@@ -87,9 +91,20 @@ def render_project(store: ProjectStore, templates: TemplateStore, settings: Sett
     checks = run_checks(exam, str(pdf_path))
     checks += [CheckResult(code="image_reduced", severity="warning", message=message, block_id=block_id or None)
                for block_id, message in renderer.notes]
+    key_pdf = key_docx = ""
+    if exam.answer_key:
+        progress("answer_key", 0.95, "Preparando o gabarito do professor…")
+        render_answer_key(exam, out_dir / "gabarito.docx")
+        key_docx = answer_key_filename(exam, "docx")
+        try:
+            docx_to_pdf(out_dir / "gabarito.docx", out_dir / "convert-key", settings).replace(out_dir / "gabarito.pdf")
+            key_pdf = answer_key_filename(exam, "pdf")
+        finally:
+            shutil.rmtree(out_dir / "convert-key", ignore_errors=True)
     result = RenderResult(
         render_id=render_id, revision=project.revision, pages=count, checks=checks,
         docx_name=safe_filename(exam, "docx"), pdf_name=safe_filename(exam, "pdf"), created_at=time.time(),
+        answer_key_pdf_name=key_pdf, answer_key_docx_name=key_docx,
     )
     write_json(result_file, json.loads(result.model_dump_json()))
     store.mutate(pid, lambda p: setattr(p, "last_render_id", render_id), bump=False)

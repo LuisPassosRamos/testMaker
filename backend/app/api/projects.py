@@ -17,6 +17,7 @@ from app.importing.storage import ProjectNotFound
 from app.importing.validation import UploadRejected, validate_upload
 from app.jobs import JobBusy
 from app.rendering.docx_writer import header_title
+from app.rendering.layout_rules import recommended_font_size
 from app.structuring.paste import pasted_items
 from app.structuring.segmenter import segment
 
@@ -26,8 +27,9 @@ IMAGE_MEDIA = {"jpg": "image/jpeg", "png": "image/png"}
 
 
 class CreateProject(BaseModel):
-    start_mode: Literal["upload", "paste", "blank"] = "upload"
+    start_mode: Literal["upload", "paste", "blank", "generate"] = "upload"
     meta: ExamMeta = Field(default_factory=ExamMeta)
+    use_ai: bool = True
 
 
 class ProjectSummary(BaseModel):
@@ -67,7 +69,14 @@ class ExtractRequest(BaseModel):
 
 @router.post("", response_model=Project)
 def create_project(body: CreateProject, svc: Services = Depends(services)) -> Project:
-    return svc.store.create(body.start_mode, body.meta)
+    project = svc.store.create(body.start_mode, body.meta)
+
+    def setup(p: Project) -> None:
+        p.use_ai = body.use_ai
+        # School research: 14 pt for the 1st and 2nd years (children still learning to read).
+        p.exam.layout.font_size = recommended_font_size(body.meta.ano)
+
+    return svc.store.mutate(project.id, setup)
 
 
 @router.get("", response_model=list[ProjectSummary])
@@ -111,7 +120,9 @@ def update_meta(pid: str, meta: ExamMeta, svc: Services = Depends(services)) -> 
 
 
 @router.post("/{pid}/sources")
-async def upload_sources(pid: str, files: list[UploadFile] = File(...), svc: Services = Depends(services)) -> dict:
+async def upload_sources(pid: str, files: list[UploadFile] = File(...),
+                         role: Literal["exam", "material"] = Query("exam"),
+                         svc: Services = Depends(services)) -> dict:
     project = load_project(svc, pid)
     if svc.jobs.is_running(pid):
         raise api_error(409, "job_running", "Aguarde a leitura atual terminar.")
@@ -119,6 +130,7 @@ async def upload_sources(pid: str, files: list[UploadFile] = File(...), svc: Ser
     rejected: list[dict[str, str]] = []
     accepted = []
     room = settings.max_files_per_project - len(project.sources)
+    exam_sources = [s for s in project.sources if s.role == "exam"]
     for upload in files:
         if room <= 0:
             rejected.append({"name": upload.filename or "arquivo",
@@ -130,13 +142,17 @@ async def upload_sources(pid: str, files: list[UploadFile] = File(...), svc: Ser
         except UploadRejected as exc:
             rejected.append({"name": upload.filename or "arquivo", "message": exc.message})
             continue
-        kinds = {s.kind for s in project.sources} | {s.kind for s in accepted}
-        if kinds and (valid.kind != "image" or kinds != {"image"}):
-            rejected.append({"name": valid.display_name, "message": (
-                "Envie um arquivo por prova. Várias imagens são aceitas apenas quando todas são páginas da mesma prova."
-            )})
-            continue
-        accepted.append(svc.store.add_source(pid, valid))
+        if role == "exam":
+            kinds = {s.kind for s in exam_sources} | {s.kind for s in accepted}
+            if kinds and (valid.kind != "image" or kinds != {"image"}):
+                rejected.append({"name": valid.display_name, "message": (
+                    "Envie um arquivo por prova. Várias imagens são aceitas apenas quando todas são páginas da mesma "
+                    "prova."
+                )})
+                continue
+        source = svc.store.add_source(pid, valid)
+        source.role = role
+        accepted.append(source)
         room -= 1
     project = svc.store.mutate(pid, lambda p: p.sources.extend(accepted))
     svc.store.sync_files(pid)
@@ -167,7 +183,7 @@ def delete_source(pid: str, sid: str, svc: Services = Depends(services)) -> Proj
 @router.post("/{pid}/extract", response_model=JobState)
 def start_extraction(pid: str, body: ExtractRequest | None = None, svc: Services = Depends(services)) -> JobState:
     project = load_project(svc, pid)
-    if not project.sources:
+    if not any(s.role == "exam" for s in project.sources):
         raise api_error(400, "no_sources", "Envie pelo menos um arquivo antes de continuar.")
     if project.exam.blocks and not (body and body.replace):
         raise api_error(409, "has_content", "Esta prova já tem conteúdo. Confirme para substituí-lo pela nova leitura.")

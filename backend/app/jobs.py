@@ -88,6 +88,7 @@ class JobRunner:
 
 def _is_user_facing(exc: Exception) -> bool:
     """Only our own errors carry Portuguese messages safe to show; others get a generic text."""
+    from app.ai.base import AiError, AiUnavailable
     from app.rendering.converter import ConversionError
 
-    return isinstance(exc, ConversionError)
+    return isinstance(exc, ConversionError | AiError | AiUnavailable)
