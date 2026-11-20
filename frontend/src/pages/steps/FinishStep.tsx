@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, Download, ExternalLink, FileDown, Mail, Send } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Download, ExternalLink, FileDown, KeyRound, Mail, Send } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, api, urls } from '../../api/client'
@@ -156,8 +156,32 @@ export default function FinishStep() {
               )}
             </div>
           </Card>
-          <Button variant="secondary" icon={<ArrowLeft className="size-5" />} onClick={() => navigate(`/prova/${project.id}/ajustar`)} className="self-start">
-            Voltar ao ajuste de impressão
+          {exam.answer_key.length > 0 && (
+            <Card className="border-emerald-200 p-5">
+              <h3 className="flex items-center gap-2 text-lg font-extrabold text-emerald-900">
+                <KeyRound className="size-5" aria-hidden /> Gabarito (só para você)
+              </h3>
+              <p className="mt-1 text-slate-600">As respostas esperadas e os critérios de correção. O gabarito não vai para a impressão.</p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <a
+                  href={ready && result?.answer_key_pdf_name ? urls.answerKey(project.id, result.render_id, 'pdf') : undefined}
+                  aria-disabled={!ready || !result?.answer_key_pdf_name}
+                  className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-4 font-bold ${ready && result?.answer_key_pdf_name ? 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50' : 'pointer-events-none border-slate-200 text-slate-400'}`}
+                >
+                  <FileDown className="size-5" aria-hidden /> Baixar gabarito (PDF)
+                </a>
+                <a
+                  href={ready && result?.answer_key_docx_name ? urls.answerKey(project.id, result.render_id, 'docx') : undefined}
+                  aria-disabled={!ready || !result?.answer_key_docx_name}
+                  className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-4 font-bold ${ready && result?.answer_key_docx_name ? 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50' : 'pointer-events-none border-slate-200 text-slate-400'}`}
+                >
+                  <Download className="size-5" aria-hidden /> Gabarito em Word
+                </a>
+              </div>
+            </Card>
+          )}
+          <Button variant="secondary" icon={<ArrowLeft className="size-5" />} onClick={() => navigate(`/prova/${project.id}/conferir`)} className="self-start">
+            Voltar à conferência
           </Button>
         </div>
 

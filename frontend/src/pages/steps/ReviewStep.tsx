@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Bot, CheckCircle2, Filter, Info, ListOrdered, Plus, Ruler, UserPen } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Bot, CheckCircle2, Eye, Filter, Info, ListOrdered, Plus, Ruler, UserPen } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, api } from '../../api/client'
@@ -26,6 +26,7 @@ import { BLOCK_KINDS } from '../../lib/labels'
 import { flushSave, useExamStore } from '../../store/examStore'
 import { BlockCard, IssueNote } from '../review/BlockCard'
 import { OriginalViewer } from '../review/OriginalViewer'
+import { SimpleReview } from '../review/SimpleReview'
 
 function InsertBar({ afterId, onInsert }: { afterId: string | null; onInsert: (kind: BlockKind, afterId: string | null) => void }) {
   return (
@@ -55,7 +56,32 @@ function questionStatus(block: Block): 'error' | 'warning' | 'edited' | 'ok' | '
   return 'todo'
 }
 
+const MODE_KEY = 'prova-pronta:review-mode'
+
+function savedMode(): 'simple' | 'advanced' {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'advanced' ? 'advanced' : 'simple'
+  } catch {
+    return 'simple'
+  }
+}
+
+/** Simple view by default (for everyone); the detailed editor is one click away and remembered. */
 export default function ReviewStep() {
+  const [mode, setMode] = useState<'simple' | 'advanced'>(savedMode)
+  const change = (next: 'simple' | 'advanced') => {
+    setMode(next)
+    try {
+      localStorage.setItem(MODE_KEY, next)
+    } catch {
+      /* ignore */
+    }
+    window.scrollTo({ top: 0 })
+  }
+  return mode === 'simple' ? <SimpleReview onAdvanced={() => change('advanced')} /> : <AdvancedReview onSimple={() => change('simple')} />
+}
+
+function AdvancedReview({ onSimple }: { onSimple: () => void }) {
   const { project, exam, apply, select, selectedPartId } = useExamStore()
   const navigate = useNavigate()
   const health = useSystem((s) => s.health)
@@ -174,7 +200,7 @@ export default function ReviewStep() {
       if (!ok) return
     }
     await flushSave()
-    navigate(`/prova/${project!.id}/ajustar`)
+    navigate(`/prova/${project!.id}/finalizar`)
   }
 
   const chipStyle = {
@@ -196,9 +222,12 @@ export default function ReviewStep() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" icon={<Eye className="size-5" />} onClick={onSimple}>
+            Ver como vai ficar
+          </Button>
           {health?.ai.enabled && (
             <Button variant="secondary" icon={<Bot className="size-5" />} onClick={() => setAiOpen(true)}>
-              Revisar com IA (opcional)
+              Sugestões da IA
             </Button>
           )}
           <Button variant="secondary" icon={<AlertTriangle className="size-5" />} disabled={!pending.length} onClick={goToNextIssue}>
@@ -313,11 +342,16 @@ export default function ReviewStep() {
           )}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
             <p className="flex items-center gap-2 text-slate-600">
-              <Info className="size-5 text-brand-600" aria-hidden /> Tudo certo? No próximo passo você escolhe cabeçalho, fonte e espaçamento.
+              <Info className="size-5 text-brand-600" aria-hidden /> Tudo certo? A diagramação é automática; ajustar é opcional.
             </p>
-            <Button size="lg" icon={<ArrowRight className="size-5" />} onClick={() => void next()}>
-              Ajustar impressão
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => void flushSave().then(() => navigate(`/prova/${project.id}/ajustar`))}>
+                Ajustar impressão
+              </Button>
+              <Button size="lg" icon={<ArrowRight className="size-5" />} onClick={() => void next()}>
+                Baixar e enviar
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -333,9 +367,8 @@ export default function ReviewStep() {
       >
         {suggestions === null ? (
           <div className="flex flex-col gap-4">
-            <Alert tone="warning" title="O conteúdo da prova será enviado ao Google (Gemini)">
-              Use apenas se a escola permitir. A IA só sugere — nada é alterado sem você clicar em “Aplicar”, e ela nunca reescreve
-              ou resolve questões.
+            <Alert tone="info" title="Sugestões uma a uma">
+              {health?.ai.notice} A IA só sugere — nada é alterado sem você clicar em “Aplicar”, e ela nunca reescreve ou resolve questões.
             </Alert>
             <div className="grid gap-3 sm:grid-cols-2">
               <Button variant="secondary" size="lg" loading={aiBusy} icon={<Filter className="size-5" />} onClick={() => void runAi('structure')}>

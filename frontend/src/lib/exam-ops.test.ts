@@ -34,6 +34,7 @@ function exam(): Exam {
     header: { mode: 'template', template_id: 'padrao-madre' },
     changes: [],
     document_issues: [],
+    answer_key: [],
   }
 }
 

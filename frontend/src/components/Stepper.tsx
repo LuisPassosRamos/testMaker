@@ -4,19 +4,34 @@ import { cx } from './ui'
 
 export const STEPS = [
   { slug: 'enviar', label: 'Enviar prova', short: 'Enviar' },
-  { slug: 'conferir', label: 'Conferir conteúdo', short: 'Conferir' },
-  { slug: 'ajustar', label: 'Ajustar impressão', short: 'Ajustar' },
+  { slug: 'conferir', label: 'Conferir', short: 'Conferir' },
+  { slug: 'ajustar', label: 'Ajustar (opcional)', short: 'Ajustar' },
   { slug: 'finalizar', label: 'Baixar e enviar', short: 'Enviar' },
 ] as const
 
-export type StepSlug = (typeof STEPS)[number]['slug']
+const CREATE_STEP = { slug: 'criar', label: 'Criar com IA', short: 'Criar' } as const
 
-export function Stepper({ projectId, current, reachable }: { projectId: string; current: StepSlug; reachable: number }) {
-  const currentIndex = STEPS.findIndex((s) => s.slug === current)
+export type StepSlug = (typeof STEPS)[number]['slug'] | 'criar'
+
+export const ALL_STEP_SLUGS: StepSlug[] = ['criar', ...STEPS.map((s) => s.slug)]
+
+/** Exams created with AI start at "Criar com IA" instead of "Enviar prova". */
+export function stepsFor(startMode: string) {
+  return startMode === 'generate' ? [CREATE_STEP, ...STEPS.slice(1)] : [...STEPS]
+}
+
+export function Stepper({ projectId, current, reachable, startMode = 'upload' }: {
+  projectId: string
+  current: StepSlug
+  reachable: number
+  startMode?: string
+}) {
+  const steps = stepsFor(startMode)
+  const currentIndex = steps.findIndex((s) => s.slug === current)
   return (
     <nav aria-label="Etapas" className="w-full">
       <ol className="flex items-center gap-1 sm:gap-2">
-        {STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const done = i < currentIndex
           const active = i === currentIndex
           const enabled = i <= reachable
@@ -56,7 +71,7 @@ export function Stepper({ projectId, current, reachable }: { projectId: string; 
                   {content}
                 </span>
               )}
-              {i < STEPS.length - 1 && <span className={cx('h-0.5 flex-1 rounded', done ? 'bg-emerald-500' : 'bg-slate-200')} aria-hidden />}
+              {i < steps.length - 1 && <span className={cx('h-0.5 flex-1 rounded', done ? 'bg-emerald-500' : 'bg-slate-200')} aria-hidden />}
             </li>
           )
         })}

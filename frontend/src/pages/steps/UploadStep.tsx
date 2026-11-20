@@ -9,7 +9,7 @@ import type { Run, SourceFile } from '../../api/types'
 import { confirmDialog } from '../../components/Dialog'
 import { ProgressCard } from '../../components/ProgressCard'
 import { toast } from '../../components/Toast'
-import { Alert, Button, Card, IconButton, cx } from '../../components/ui'
+import { Alert, Button, Card, IconButton, Toggle, cx } from '../../components/ui'
 import { useJob } from '../../hooks/useJob'
 import { useSystem } from '../../hooks/useHealth'
 import { htmlToParagraphs, textToParagraphs } from '../../lib/runs'
@@ -136,8 +136,18 @@ export default function UploadStep() {
   }, [])
 
   if (!project || !exam) return null
-  const sources = project.sources
+  const sources = project.sources.filter((s) => s.role !== 'material')
   const images = sources.every((s) => s.kind === 'image') && sources.length > 0
+  const aiReading = Boolean(health?.ai.enabled && health.ai.reading)
+
+  async function toggleAi(value: boolean) {
+    if (!project) return
+    try {
+      replaceProject(await api.setUseAi(project.id, value))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Não foi possível mudar a opção.')
+    }
+  }
 
   async function onExtractionFinished(final: { status: string }) {
     if (!project) return
@@ -231,6 +241,16 @@ export default function UploadStep() {
     setReading(true)
     try {
       replaceProject(await api.paste(project.id, pasted.filter((p, i, all) => p.length || (i > 0 && all[i - 1].length)), replace))
+      if (aiReading && project.use_ai) {
+        // The rules already organised the text; the AI checks and fixes the organisation (never the words).
+        try {
+          const final = await track(await api.aiOrganize(project.id))
+          replaceProject(await api.getProject(project.id))
+          if (final.status === 'failed') toast.error('A IA não conseguiu conferir agora; foi usada a organização automática simples.')
+        } catch {
+          /* the rule-based organisation is already saved */
+        }
+      }
       navigate(`/prova/${project.id}/conferir`)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível organizar o texto.')
@@ -239,10 +259,21 @@ export default function UploadStep() {
     }
   }
 
-  if (reading && job) {
+  const aiSwitch = aiReading ? (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <Toggle
+        label="Organizar com inteligência artificial (recomendado)"
+        description={`A IA separa questões, alternativas e textos de apoio sem mudar nenhuma palavra. ${health?.ai.notice ?? ''}`}
+        checked={project.use_ai}
+        onChange={(v) => void toggleAi(v)}
+      />
+    </div>
+  ) : null
+
+  if (reading && job && job.status === 'running') {
     return (
       <div className="mx-auto max-w-2xl">
-        <ProgressCard job={job} title="Lendo a prova" />
+        <ProgressCard job={job} title={job.kind === 'organize' ? 'Organizando a prova' : 'Lendo a prova'} />
       </div>
     )
   }
@@ -264,6 +295,7 @@ export default function UploadStep() {
       </div>
 
       {job?.status === 'failed' && <ProgressCard job={job} title="Leitura" />}
+      {aiSwitch}
 
       {mode === 'upload' ? (
         <>

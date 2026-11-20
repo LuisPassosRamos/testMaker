@@ -2,6 +2,7 @@ import type {
   ExamMeta,
   Exam,
   FontOption,
+  GenerationRequest,
   Health,
   HeaderTemplate,
   JobState,
@@ -61,17 +62,19 @@ export const api = {
   health: () => request<Health>('/api/health'),
   fonts: () => request<FontOption[]>('/api/fonts'),
 
-  createProject: (start_mode: Project['start_mode'], meta: ExamMeta) =>
-    request<Project>('/api/projects', { method: 'POST', body: json({ start_mode, meta }) }),
+  createProject: (start_mode: Project['start_mode'], meta: ExamMeta, use_ai = true) =>
+    request<Project>('/api/projects', { method: 'POST', body: json({ start_mode, meta, use_ai }) }),
+  setUseAi: (id: string, use_ai: boolean) =>
+    request<Project>(`/api/projects/${id}/use-ai`, { method: 'PUT', body: json({ use_ai }) }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   summaries: (ids: string[]) => request<ProjectSummary[]>(`/api/projects?ids=${ids.join(',')}`),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: 'DELETE' }),
 
-  uploadSources: (id: string, files: File[]) => {
+  uploadSources: (id: string, files: File[], role: 'exam' | 'material' = 'exam') => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
     return request<{ project: Project; rejected: { name: string; message: string }[] }>(
-      `/api/projects/${id}/sources`,
+      `/api/projects/${id}/sources?role=${role}`,
       { method: 'POST', body: form },
     )
   },
@@ -118,6 +121,12 @@ export const api = {
     return request<HeaderTemplate>(`/api/templates/${tid}/logo`, { method: 'POST', body: form })
   },
 
+  aiGenerate: (id: string, req: GenerationRequest) =>
+    request<JobState>(`/api/projects/${id}/ai/generate`, { method: 'POST', body: json(req) }),
+  aiQuestion: (id: string, blockId: string, action: 'trocar' | 'mais_facil' | 'mais_dificil') =>
+    request<JobState>(`/api/projects/${id}/ai/question/${blockId}`, { method: 'POST', body: json({ action }) }),
+  aiOrganize: (id: string) => request<JobState>(`/api/projects/${id}/ai/organize`, { method: 'POST' }),
+
   aiStructure: (id: string) =>
     request<Suggestion[]>(`/api/projects/${id}/ai/structure`, { method: 'POST', body: json({ consent: true }) }),
   aiOcrReview: (id: string, block_ids?: string[]) =>
@@ -133,5 +142,7 @@ export const urls = {
   renderPage: (id: string, rid: string, n: number) => `/api/projects/${id}/renders/${rid}/pages/${n}.jpg`,
   download: (id: string, rid: string, kind: 'pdf' | 'docx', inline = false) =>
     `/api/projects/${id}/renders/${rid}/download/${kind}${inline ? '?inline=true' : ''}`,
+  answerKey: (id: string, rid: string, kind: 'pdf' | 'docx', inline = false) =>
+    `/api/projects/${id}/renders/${rid}/answer-key/${kind}${inline ? '?inline=true' : ''}`,
   logo: (tid: string, bust = '') => `/api/templates/${tid}/logo${bust ? `?v=${bust}` : ''}`,
 }

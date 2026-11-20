@@ -2,12 +2,13 @@ import { AlertTriangle, Check, CloudOff, Loader2, Redo2, Undo2 } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
-import { STEPS, Stepper, type StepSlug } from '../components/Stepper'
+import { ALL_STEP_SLUGS, Stepper, type StepSlug } from '../components/Stepper'
 import { Alert, Button, IconButton, Spinner } from '../components/ui'
 import { DOC_TYPES, examTitle } from '../lib/labels'
 import { forgetProject, rememberProject } from '../lib/recent'
 import { clearDraft, readDraft, useExamStore } from '../store/examStore'
 import FinishStep from './steps/FinishStep'
+import GenerateStep from './steps/GenerateStep'
 import LayoutStep from './steps/LayoutStep'
 import ReviewStep from './steps/ReviewStep'
 import UploadStep from './steps/UploadStep'
@@ -79,7 +80,7 @@ export default function ProjectPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo])
 
-  if (!STEPS.some((s) => s.slug === step)) return <Navigate to={`/prova/${id}/conferir`} replace />
+  if (!ALL_STEP_SLUGS.includes(step as StepSlug)) return <Navigate to={`/prova/${id}/conferir`} replace />
 
   if (error) {
     return (
@@ -99,11 +100,14 @@ export default function ProjectPage() {
   }
 
   const hasContent = exam.blocks.length > 0
-  const reachable = hasContent || project.start_mode !== 'upload' ? 3 : 0
+  const generate = project.start_mode === 'generate'
+  const reachable = hasContent || (project.start_mode !== 'upload' && !generate) ? 3 : 0
   const current = step as StepSlug
-  if (!hasContent && project.start_mode === 'upload' && current !== 'enviar') {
-    return <Navigate to={`/prova/${id}/enviar`} replace />
+  const firstStep = generate ? 'criar' : 'enviar'
+  if (!hasContent && (project.start_mode === 'upload' || generate) && current !== firstStep) {
+    return <Navigate to={`/prova/${id}/${firstStep}`} replace />
   }
+  if (current === 'enviar' && generate) return <Navigate to={`/prova/${id}/criar`} replace />
   const showHistory = current === 'conferir' || current === 'ajustar'
 
   return (
@@ -129,7 +133,7 @@ export default function ProjectPage() {
               <SaveIndicator />
             </div>
           </div>
-          <Stepper projectId={id} current={current} reachable={reachable} />
+          <Stepper projectId={id} current={current} reachable={reachable} startMode={project.start_mode} />
         </div>
       </div>
 
@@ -175,6 +179,7 @@ export default function ProjectPage() {
             Elas ficaram guardadas neste navegador (por exemplo, por falta de conexão).
           </Alert>
         )}
+        {current === 'criar' && <GenerateStep />}
         {current === 'enviar' && <UploadStep />}
         {current === 'conferir' && <ReviewStep />}
         {current === 'ajustar' && <LayoutStep />}

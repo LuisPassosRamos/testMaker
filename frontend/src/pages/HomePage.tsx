@@ -9,9 +9,10 @@ import {
   PencilLine,
   ScanSearch,
   Send,
+  ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
-  Upload,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -35,14 +36,20 @@ const TYPE_ICONS: Record<DocType, ReactNode> = {
 
 const START_OPTIONS: { value: Project['start_mode']; title: string; text: string; icon: ReactNode; badge?: string }[] = [
   {
-    value: 'upload',
-    title: 'Enviar arquivo',
-    text: 'Word (.docx), PDF ou fotos das páginas.',
-    icon: <FileUp className="size-7" aria-hidden />,
-    badge: 'Mais usado',
+    value: 'generate',
+    title: 'Criar com IA',
+    text: 'Conte o que foi trabalhado (ou envie o plano de aula) e a IA monta a prova com gabarito.',
+    icon: <Sparkles className="size-7" aria-hidden />,
+    badge: 'Novo',
   },
-  { value: 'paste', title: 'Colar o texto', text: 'Copie do Word ou Google Docs e cole aqui.', icon: <ClipboardPaste className="size-7" aria-hidden /> },
-  { value: 'blank', title: 'Criar do zero', text: 'Digite as questões direto no Prova Pronta.', icon: <FilePlus2 className="size-7" aria-hidden /> },
+  {
+    value: 'upload',
+    title: 'Formatar uma prova pronta',
+    text: 'Envie o Word, PDF ou fotos. A prova é organizada no padrão da escola.',
+    icon: <FileUp className="size-7" aria-hidden />,
+  },
+  { value: 'paste', title: 'Colar o texto', text: 'Copie do Word, do Google Docs ou do ChatGPT e cole aqui.', icon: <ClipboardPaste className="size-7" aria-hidden /> },
+  { value: 'blank', title: 'Digitar do zero', text: 'Escreva as questões direto no Prova Pronta.', icon: <FilePlus2 className="size-7" aria-hidden /> },
 ]
 
 const EMPTY_META: ExamMeta = {
@@ -75,6 +82,8 @@ function RadioCard({
   icon,
   badge,
   name,
+  disabled,
+  disabledText,
 }: {
   checked: boolean
   onSelect: () => void
@@ -83,18 +92,21 @@ function RadioCard({
   icon: ReactNode
   badge?: string
   name: string
+  disabled?: boolean
+  disabledText?: string
 }) {
   return (
     <label
       className={cx(
-        'relative flex cursor-pointer flex-col gap-2 rounded-2xl border-2 p-4 transition-colors',
-        checked ? 'border-brand-600 bg-brand-50 shadow-sm' : 'border-slate-200 bg-white hover:border-brand-300',
+        'relative flex flex-col gap-2 rounded-2xl border-2 p-4 transition-colors has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-200',
+        disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70' : 'cursor-pointer',
+        !disabled && (checked ? 'border-brand-600 bg-brand-50 shadow-sm' : 'border-slate-200 bg-white hover:border-brand-300'),
       )}
     >
-      <input type="radio" name={name} className="sr-only" checked={checked} onChange={onSelect} />
+      <input type="radio" name={name} className="sr-only" checked={checked} disabled={disabled} onChange={onSelect} />
       <span className={cx(checked ? 'text-brand-700' : 'text-slate-500')}>{icon}</span>
       <span className="font-display text-lg font-extrabold text-brand-950">{title}</span>
-      <span className="text-sm leading-snug text-slate-600">{text}</span>
+      <span className="text-sm leading-snug text-slate-600">{disabled && disabledText ? disabledText : text}</span>
       {badge && <span className="absolute top-3 right-3 rounded-full bg-brand-700 px-2 py-0.5 text-xs font-bold text-white">{badge}</span>}
       {checked && <span className="sr-only">(selecionado)</span>}
     </label>
@@ -108,7 +120,10 @@ export default function HomePage() {
   const [meta, setMeta] = useState<ExamMeta>({ ...EMPTY_META, professor: profile.professor, disciplina: profile.disciplina })
   const [dateIso, setDateIso] = useState('')
   const [deliveryIso, setDeliveryIso] = useState('')
-  const [start, setStart] = useState<Project['start_mode']>('upload')
+  const [chosenStart, setStart] = useState<Project['start_mode'] | null>(null)
+  const aiReady = Boolean(health?.ai.enabled)
+  // Creating with AI is the suggested start when the site has AI; otherwise formatting a ready exam.
+  const start: Project['start_mode'] = chosenStart ?? (aiReady ? 'generate' : 'upload')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [recent, setRecent] = useState<ProjectSummary[]>([])
@@ -153,7 +168,8 @@ export default function HomePage() {
       saveProfile({ professor: meta.professor, disciplina: meta.disciplina })
       const project = await api.createProject(start, payload)
       rememberProject(project.id)
-      navigate(`/prova/${project.id}/${start === 'blank' ? 'conferir' : 'enviar'}`)
+      const first = { generate: 'criar', blank: 'conferir', upload: 'enviar', paste: 'enviar' }[start]
+      navigate(`/prova/${project.id}/${first}`)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível começar. Tente de novo.')
     } finally {
@@ -185,17 +201,17 @@ export default function HomePage() {
         <GlobePattern className="pointer-events-none absolute -top-16 -right-16 size-[26rem] text-white/10" />
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
           <h1 className="max-w-3xl text-3xl leading-tight font-extrabold sm:text-5xl">
-            Sua prova organizada e pronta para imprimir
+            Sua prova pronta, no padrão da escola
           </h1>
           <p className="mt-4 max-w-2xl text-lg text-brand-100">
-            Envie do jeito que estiver — Word, PDF ou fotos. O Prova Pronta organiza questões e alternativas sem mudar o
-            conteúdo, você confere e ele envia para a impressão da escola.
+            Crie a prova com inteligência artificial a partir do que você trabalhou em sala, ou envie a prova do jeito que estiver —
+            Word, PDF ou fotos. O Prova Pronta organiza tudo, você confere e ele envia para a impressão.
           </p>
           <ol className="mt-8 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { icon: <Upload className="size-6" />, title: 'Enviar prova' },
-              { icon: <ScanSearch className="size-6" />, title: 'Conferir conteúdo' },
-              { icon: <SlidersHorizontal className="size-6" />, title: 'Ajustar impressão' },
+              { icon: <Sparkles className="size-6" />, title: 'Criar ou enviar' },
+              { icon: <ScanSearch className="size-6" />, title: 'Conferir' },
+              { icon: <SlidersHorizontal className="size-6" />, title: 'Ajustar (opcional)' },
               { icon: <Send className="size-6" />, title: 'Baixar e enviar' },
             ].map((s, i) => (
               <li key={s.title} className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
@@ -221,7 +237,30 @@ export default function HomePage() {
             </div>
 
             <fieldset>
-              <legend className="mb-3 text-lg font-extrabold text-brand-900">1. O que você vai preparar?</legend>
+              <legend className="mb-3 text-lg font-extrabold text-brand-900">1. Como você quer começar?</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {START_OPTIONS.map((o) => (
+                  <RadioCard
+                    key={o.value}
+                    name="inicio"
+                    checked={start === o.value}
+                    onSelect={() => setStart(o.value)}
+                    disabled={o.value === 'generate' && !aiReady}
+                    disabledText="Disponível assim que a inteligência artificial for ativada neste site."
+                    {...o}
+                  />
+                ))}
+              </div>
+              {aiReady && health?.ai.notice && start !== 'blank' && (
+                <p className="mt-3 flex items-start gap-2 text-sm text-slate-600">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden />
+                  {health.ai.notice}
+                </p>
+              )}
+            </fieldset>
+
+            <fieldset>
+              <legend className="mb-3 text-lg font-extrabold text-brand-900">2. O que você vai preparar?</legend>
               <div className="grid gap-3 sm:grid-cols-3">
                 {(Object.keys(DOC_TYPES) as DocType[]).map((type) => (
                   <RadioCard
@@ -238,7 +277,7 @@ export default function HomePage() {
             </fieldset>
 
             <fieldset>
-              <legend className="mb-3 text-lg font-extrabold text-brand-900">2. Dados da turma</legend>
+              <legend className="mb-3 text-lg font-extrabold text-brand-900">3. Dados da turma</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Professor(a)" id="campo-professor" required error={errors.professor} className="sm:col-span-2">
                   {(id, d) => (
@@ -319,15 +358,6 @@ export default function HomePage() {
                     {(id, d) => <Input id={id} aria-describedby={d} type="date" value={deliveryIso} onChange={(e) => setDeliveryIso(e.target.value)} />}
                   </Field>
                 )}
-              </div>
-            </fieldset>
-
-            <fieldset>
-              <legend className="mb-3 text-lg font-extrabold text-brand-900">3. Como você quer começar?</legend>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {START_OPTIONS.map((o) => (
-                  <RadioCard key={o.value} name="inicio" checked={start === o.value} onSelect={() => setStart(o.value)} {...o} />
-                ))}
               </div>
             </fieldset>
 

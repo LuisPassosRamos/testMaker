@@ -9,7 +9,7 @@ export interface Run {
   sub?: boolean
 }
 
-export type Method = 'docx' | 'pdf_text' | 'ocr' | 'paste' | 'manual' | 'crop'
+export type Method = 'docx' | 'pdf_text' | 'ocr' | 'paste' | 'manual' | 'crop' | 'ai'
 
 export interface Provenance {
   source_id: string | null
@@ -151,6 +151,26 @@ export interface ChangeEntry {
   block_id: string | null
 }
 
+/** Expected answer of a question (teacher only; printed in a separate answer key). */
+export interface AnswerKeyEntry {
+  block_id: string
+  number: string
+  answer: string
+  criteria: string
+  points: string
+  skill: string
+  demand: string
+}
+
+export interface GenerationRequest {
+  conteudo: string
+  quantidade: number | null
+  formato: 'misturado' | 'objetivas' | 'abertas'
+  nivel: 'facil' | 'normal' | 'desafiador'
+  com_texto_apoio: boolean
+  observacoes: string
+}
+
 export interface Exam {
   meta: ExamMeta
   blocks: Block[]
@@ -158,6 +178,7 @@ export interface Exam {
   header: HeaderConfig
   changes: ChangeEntry[]
   document_issues: Issue[]
+  answer_key: AnswerKeyEntry[]
 }
 
 export interface SourcePage {
@@ -178,11 +199,13 @@ export interface SourceFile {
   size: number
   pages: SourcePage[]
   extracted: boolean
+  /** exam: the exam to format · material: lesson plan, notebook photo… for creating an exam with AI */
+  role: 'exam' | 'material'
 }
 
 export interface JobState {
   id: string
-  kind: 'extract' | 'render'
+  kind: 'extract' | 'render' | 'organize' | 'generate'
   status: 'idle' | 'running' | 'done' | 'failed'
   stage: string
   message: string
@@ -202,7 +225,9 @@ export interface Project {
   created_at: string
   updated_at: string
   revision: number
-  start_mode: 'upload' | 'paste' | 'blank'
+  start_mode: 'upload' | 'paste' | 'blank' | 'generate'
+  use_ai: boolean
+  generation: GenerationRequest | null
   exam: Exam
   sources: SourceFile[]
   job: JobState | null
@@ -238,6 +263,8 @@ export interface RenderResult {
   docx_name: string
   pdf_name: string
   created_at: number
+  answer_key_pdf_name: string
+  answer_key_docx_name: string
 }
 
 export interface RenderStatus {
@@ -251,7 +278,15 @@ export interface Health {
   version: string
   converter: { available: boolean; engine: string | null; message: string }
   ocr: { available: boolean; version: string | null; message: string }
-  ai: { enabled: boolean; model: string | null }
+  ai: {
+    enabled: boolean
+    provider: 'heroku' | 'gemini' | null
+    model: string | null
+    model_write: string | null
+    /** Where exam content goes, in plain words for teachers. */
+    notice: string
+    reading: boolean
+  }
   database: { configured: boolean; ok: boolean | null }
   access: { required: boolean }
   mail: { mode: 'outbox' | 'smtp'; to: string }

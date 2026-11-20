@@ -182,7 +182,23 @@ export default function LayoutStep() {
               <Field label="Disciplina" className="col-span-2">
                 {(id) => <Input id={id} key={exam.meta.disciplina} defaultValue={exam.meta.disciplina} onBlur={(e) => e.target.value !== exam.meta.disciplina && setMeta({ disciplina: e.target.value })} />}
               </Field>
-              <ChoiceChips className="col-span-2" label="Ano" required value={exam.meta.ano} options={ANO_CHIPS} onChange={(v) => setMeta({ ano: v })} />
+              <ChoiceChips
+                className="col-span-2"
+                label="Ano"
+                required
+                value={exam.meta.ano}
+                options={ANO_CHIPS}
+                onChange={(v) =>
+                  apply(
+                    (d) => {
+                      d.meta = { ...d.meta, ano: v }
+                      // School research: 14 pt in the 1st and 2nd years; the school's standard 12 pt otherwise.
+                      if (d.layout.preset === 'padrao') d.layout.font_size = /^\s*[12]\s*º/.test(v) ? 14 : 12
+                    },
+                    { kind: 'content', summary: 'Ano alterado' },
+                  )
+                }
+              />
               <ChoiceChips
                 className="col-span-2"
                 label="Turma"
@@ -266,7 +282,8 @@ export default function LayoutStep() {
                 ]}
                 onChange={(preset) => {
                   if (preset === 'personalizado') return
-                  setLayout({ ...PRESETS[preset], preset }, `Estilo “${preset}” aplicado`)
+                  const early = preset === 'padrao' && /^\s*[12]\s*º/.test(exam.meta.ano)
+                  setLayout({ ...PRESETS[preset], ...(early ? { font_size: 14 } : {}), preset }, `Estilo “${preset}” aplicado`)
                 }}
               />
             </div>
