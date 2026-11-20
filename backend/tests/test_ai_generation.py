@@ -205,3 +205,19 @@ def test_bold_markers_and_prompt_rules():
                                                 ("outra", True), (".", False)]
     prompt = system_prompt()
     assert "NÃO o\nescreva" in prompt or "NÃO o escreva" in prompt.replace("\n", " ")
+
+
+def test_null_fields_in_ai_replies_take_their_defaults():
+    from app.ai.generate import GeneratedExam
+    from app.ai.organize import OrganizeReply
+
+    exam = GeneratedExam.model_validate_json(json.dumps({
+        "instrucoes": None, "mensagem_final": None,
+        "itens": [{"tipo": "questao", "formato": "resposta_curta", "enunciado": "Quanto é 2 + 2?",
+                   "alternativas": None, "afirmacoes": None, "coluna_a": None, "coluna_b": None, "tabela": None,
+                   "linhas_resposta": None, "gabarito": "4"}],
+    }))
+    item = exam.itens[0]
+    assert exam.instrucoes == [] and item.alternativas == [] and item.coluna_b == [] and item.linhas_resposta == 0
+    reply = OrganizeReply.model_validate_json('{"papeis": ["questao_inicio"], "duvidas": null, "dados": null}')
+    assert reply.duvidas == [] and reply.dados.disciplina is None

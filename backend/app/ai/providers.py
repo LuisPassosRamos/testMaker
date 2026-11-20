@@ -2,7 +2,7 @@
 
 Each service needs only its key in the environment. The order of preference comes from
 ``AI_CHAIN_READ`` (organising uploaded exams) and ``AI_CHAIN_WRITE`` (creating exams), lists
-like ``heroku,gemini:gemini-3.8-flash,groq:openai/gpt-oss-120b``. Entries whose key is not
+like ``heroku,gemini:gemini-3.6-flash,groq:openai/gpt-oss-120b``. Entries whose key is not
 configured are skipped, so the same defaults work with any subset of keys.
 """
 
@@ -46,20 +46,23 @@ PROVIDERS: dict[str, Provider] = {
     "groq": Provider(
         "groq", "Groq", "https://api.groq.com/openai/v1", "groq_api_key",
         # Free plan: 8K tokens per minute per model, so only short replies fit.
-        max_tokens={"read": 2048, "write": 4096},
+        max_tokens={"read": 2048, "write": 4096}, extra={"read": {"reasoning_effort": "low"}},
     ),
     "mistral": Provider(
         "mistral", "Mistral", "https://api.mistral.ai/v1", "mistral_api_key", may_train=True,
     ),
     "openrouter": Provider(
         "openrouter", "OpenRouter (modelos grátis)", "https://openrouter.ai/api/v1", "openrouter_api_key",
+        # The free router may pick a reasoning model, whose thinking counts against the reply limit.
+        max_tokens={"read": 8192, "write": 16384},
+        extra={"read": {"reasoning": {"effort": "low"}}, "write": {"reasoning": {"effort": "low"}}},
         headers={"X-Title": "Prova Pronta"},
     ),
 }
 
 DEFAULT_MODELS = {
     "heroku": {"read": "claude-haiku-5-5", "write": "claude-sonnet-5-5"},
-    "gemini": {"read": "gemini-3.5-flash-lite", "write": "gemini-3.8-flash"},
+    "gemini": {"read": "gemini-3.5-flash-lite", "write": "gemini-3.6-flash"},
     "groq": {"read": "openai/gpt-oss-120b", "write": "openai/gpt-oss-120b"},
     "mistral": {"read": "mistral-small-latest", "write": "mistral-large-latest"},
     "openrouter": {"read": "openrouter/free", "write": "openrouter/free"},

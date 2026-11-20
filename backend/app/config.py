@@ -66,10 +66,12 @@ class Settings(BaseSettings):
     # the app works with the deterministic reader and AI features are hidden. "off" turns AI off; a
     # service name uses only that service.
     ai_provider: Literal["auto", "heroku", "gemini", "groq", "mistral", "openrouter", "off"] = "auto"
-    ai_chain_read: str = ("heroku,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-120b,gemini:gemini-3.8-flash,"
+    # Writing starts with Gemini 3.6 Flash: the newest Flash is often "under high demand" (503) on the
+    # free plan. Groq is fast but its free plan only fits short replies; the OpenRouter free router is slow.
+    ai_chain_read: str = ("heroku,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-120b,gemini:gemini-3.6-flash,"
                           "mistral:mistral-small-latest,openrouter:openrouter/free")
-    ai_chain_write: str = ("heroku,gemini:gemini-3.8-flash,mistral:mistral-large-latest,gemini:gemini-3.5-flash-lite,"
-                           "openrouter:openrouter/free,groq:openai/gpt-oss-120b")
+    ai_chain_write: str = ("heroku,gemini:gemini-3.6-flash,gemini:gemini-3.8-flash,mistral:mistral-large-latest,"
+                           "gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-120b,openrouter:openrouter/free")
     # Heroku Managed Inference (the add-on sets these two) and its models.
     inference_url: str | None = None
     inference_key: SecretStr | None = None

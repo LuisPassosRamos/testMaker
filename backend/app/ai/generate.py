@@ -14,9 +14,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from app.ai.base import DATA_GUARD, AiError, JsonModel, call_json
+from app.ai.base import DATA_GUARD, AiError, JsonModel, Reply, call_json
 from app.domain.models import (
     AnswerKeyEntry,
     AnswerSpace,
@@ -43,11 +43,11 @@ Formato = Literal["escolha_unica", "multipla_escolha", "verdadeiro_falso", "asso
                   "resposta_curta", "resposta_longa", "calculo", "ordenacao", "desenho"]
 
 
-class GenTable(BaseModel):
+class GenTable(Reply):
     linhas: list[list[str]] = Field(default_factory=list, max_length=25)
 
 
-class GenItem(BaseModel):
+class GenItem(Reply):
     tipo: Literal["texto_apoio", "questao"] = "questao"
     # texto de apoio
     titulo: str | None = Field(None, max_length=200)
@@ -70,14 +70,14 @@ class GenItem(BaseModel):
     demanda: Literal["direta", "aplicacao", "raciocinio"] | None = None
 
 
-class GeneratedExam(BaseModel):
+class GeneratedExam(Reply):
     instrucoes: list[str] = Field(default_factory=list, max_length=8)
     itens: list[GenItem] = Field(min_length=1, max_length=45)
     mensagem_final: str | None = Field(None, max_length=200)
     observacoes_professor: str | None = Field(None, max_length=1500)
 
 
-class GeneratedQuestion(BaseModel):
+class GeneratedQuestion(Reply):
     item: GenItem
 
 

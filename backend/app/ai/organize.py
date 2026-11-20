@@ -15,9 +15,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from app.ai.base import DATA_GUARD, AiError, JsonModel, call_json
+from app.ai.base import DATA_GUARD, AiError, JsonModel, Reply, call_json
 from app.domain.models import Block, ExamMeta, Issue, Part, Run, merge_runs, runs_text
 from app.structuring.patterns import match_alternative, match_question
 from app.structuring.segmenter import split_runs
@@ -38,12 +38,12 @@ _GUESS_CODES = {"after_alternatives", "media_between_questions", "numbering_out_
                 "inline_alternatives_split"}
 
 
-class _Doubt(BaseModel):
+class _Doubt(Reply):
     n: int
     pergunta: str = Field(max_length=400)
 
 
-class TitleData(BaseModel):
+class TitleData(Reply):
     tipo: Literal["prova", "atividade", "revisao"] | None = None
     disciplina: str | None = Field(None, max_length=60)
     ano: str | None = Field(None, max_length=20)
@@ -52,7 +52,7 @@ class TitleData(BaseModel):
     modalidade: Literal["regular", "final", "parcial", "recuperacao", "segunda_chamada", "simulado"] | None = None
 
 
-class OrganizeReply(BaseModel):
+class OrganizeReply(Reply):
     papeis: list[Role]
     duvidas: list[_Doubt] = Field(default_factory=list)
     dados: TitleData = Field(default_factory=TitleData)

@@ -85,8 +85,8 @@ def test_chain_follows_the_configured_order_and_skips_missing_keys(settings):
     s = _settings(settings, gemini_api_key="g", groq_api_key="q")
     read = [(p.name, m) for p, m in chain_spec(s, "read")]
     write = [(p.name, m) for p, m in chain_spec(s, "write")]
-    assert read == [("gemini", "gemini-3.5-flash-lite"), ("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-3.8-flash")]
-    assert write[0] == ("gemini", "gemini-3.8-flash")
+    assert read == [("gemini", "gemini-3.5-flash-lite"), ("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-3.6-flash")]
+    assert write[:2] == [("gemini", "gemini-3.6-flash"), ("gemini", "gemini-3.8-flash")]
     assert all(name in ("gemini", "groq") for name, _ in write)
     only = settings.model_copy(update={"ai_provider": "groq", "gemini_api_key": SecretStr("g"),
                                        "groq_api_key": SecretStr("q")})

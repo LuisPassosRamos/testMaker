@@ -27,7 +27,7 @@ class OpenAICompatibleModel:
                  vision: bool = False, extra_body: dict[str, Any] | None = None,
                  headers: dict[str, str] | None = None, transport: httpx.BaseTransport | None = None):
         self.name = name  # provider id, e.g. "gemini"
-        self.label = label  # shown to people, e.g. "Gemini (gemini-3.8-flash)"
+        self.label = label  # shown to people, e.g. "Gemini (Google) · gemini-3.6-flash"
         self.model = model
         self.vision = vision
         self._url = url.rstrip("/") + "/chat/completions"

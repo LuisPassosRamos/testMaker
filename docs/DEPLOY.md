@@ -49,7 +49,7 @@ A IA (criar provas e organizar as enviadas) usa uma **fila de serviços**: cada 
 1. Crie a conta e a chave em cada serviço que quiser (uma conta por serviço: criar várias contas no mesmo serviço para somar limites viola as regras deles).
 2. No Heroku, **Settings → Reveal Config Vars**, cole cada chave no nome indicado acima. O app reinicia sozinho.
 3. Abra `/api/health`: em `ai` deve aparecer `"enabled": true` e, em `providers`, os serviços na ordem da fila.
-4. No site, crie uma prova com IA. O histórico de alterações mostra qual serviço respondeu (ex.: “Prova criada com IA (10 questões) · Gemini (Google) · gemini-3.8-flash”).
+4. No site, crie uma prova com IA. O histórico de alterações mostra qual serviço respondeu (ex.: “Prova criada com IA (10 questões) · Gemini (Google) · gemini-3.6-flash”).
 
 A tela avisa os professores que serviços gratuitos podem usar o conteúdo e pede para não colocar nomes de alunos nas provas. A ordem padrão da fila está em `AI_CHAIN_READ` e `AI_CHAIN_WRITE` (veja o `.env.example`); `AI_READING=false` desliga a organização automática das provas enviadas e `AI_PROVIDER=off` desliga a IA.
 
