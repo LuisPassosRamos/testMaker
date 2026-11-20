@@ -21,7 +21,10 @@ flowchart LR
     C --> K[checks<br/>PDF × modelo]
     C --> X[prévia = páginas do PDF]
     C --> Mail[mail<br/>SMTP / caixa de saída]
-    M -.opcional, com consentimento.-> AI[Gemini<br/>só sugere]
+    S -.com IA ligada.-> AO[ai/organize<br/>papel de cada linha]
+    AO --> M
+    G[Pedido do professor<br/>+ material] -.com IA ligada.-> AG[ai/generate<br/>manual da escola]
+    AG --> M
 ```
 
 Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova é uma pasta em `data/projects/<uuid>/`; quando `DATABASE_URL` está definido, o PostgreSQL vira a cópia durável e a pasta passa a ser cache (ver [Armazenamento e tarefas](#7-armazenamento-e-tarefas)).
@@ -34,7 +37,7 @@ Um único processo FastAPI serve a API (`/api/*`) e o site compilado. Cada prova
 | `domain/` | Modelo intermediário (Pydantic) compartilhado por todas as etapas. |
 | `rendering/` | Geração do DOCX (python-docx), conversão para PDF, prévias, verificações automáticas, fontes disponíveis. |
 | `mail/` | Montagem e envio do e-mail para a impressão. |
-| `ai/` | Assistente opcional (Gemini) com validação estrita das respostas. |
+| `ai/` | Provedores (Heroku Managed Inference/Claude ou Gemini) com JSON validado; `organize` (papéis por linha, reagrupamento determinístico com assinatura de texto), `generate` + `manual_geracao.md` (criar provas e gabarito), `materials` (texto e páginas do material do professor), `creation` (tarefas em segundo plano). |
 | `persistence.py` | PostgreSQL (ou SQLite) opcional: projetos, arquivos essenciais e modelos de cabeçalho. |
 | `auth.py` | Código da escola, sessão assinada em cookie e limites de tentativas/envios. |
 | `api/`, `jobs.py`, `main.py` | Rotas HTTP, tarefas em segundo plano com progresso, app e arquivos estáticos. |
@@ -103,14 +106,16 @@ As regras (`structuring/patterns.py` e `segmenter.py`) reconhecem padrões de pr
 
 `rendering/checks.py` relê o PDF (na ordem de leitura de colunas) e confere contra o modelo: cada questão e alternativa aparece uma única vez e na ordem; nada fora das margens; páginas A4; número de questão isolado na última linha da página; questões que ocupam mais de uma página; imagens reduzidas demais para caber na coluna. Também aplica os limites do padrão da escola: até **4 páginas A4** (lista as questões que passaram), até **3 imagens por página** e uma grande, letra mínima por ano (12 pt do 1º ao 5º, 11 pt do 6º ao 9º; 14 pt recomendado no 1º e 2º) e questão que depende de **cores** numa impressão em preto e branco. Os avisos aparecem ao lado da prévia com atalho para a questão.
 
-### 6. IA opcional e segura
+### 6. Inteligência artificial, com fidelidade e reserva
 
-Desligada sem `GEMINI_API_KEY` (pacote `google-genai` é um extra opcional). Quando ligada, cada chamada exige consentimento explícito na interface e no backend (`consent: true`). O modelo:
+O público do site é, em grande parte, de professores com pouca familiaridade com tecnologia: o fluxo precisa ser quase todo automático. Por isso a IA faz o trabalho e o professor confere com um ou dois cliques. Ainda assim, **nada depende dela**: sem IA configurada (ou se ela falhar), o site usa as regras determinísticas.
 
-- recebe o conteúdo da prova como **dados** (o prompt diz para ignorar instruções contidas nele);
-- responde em JSON com schema e só pode **rotular partes por id** ou propor correções **de caracteres** de OCR;
-- tem a resposta validada: ids desconhecidos, faltando ou fora de ordem invalidam tudo; sugestões que não conferem com o texto atual, que reescrevem (similaridade < 85%) ou mudam muito o tamanho são descartadas;
-- nunca aplica nada sozinho: o professor aceita sugestão por sugestão.
+- **Provedor.** `AI_PROVIDER=auto` usa o Heroku Managed Inference quando o add-on está ligado (`INFERENCE_URL`/`INFERENCE_KEY`), senão o Gemini (`GEMINI_API_KEY`). No Heroku as chamadas são em *streaming* (o roteador corta chamadas sem streaming após ~29 s) e pedem JSON em texto (uma chamada de ferramenta é limitada a 55 s). Modelos: Claude Haiku 5.5 para organizar e Claude Sonnet 5.5 para criar.
+- **Dados, não comandos.** Todo texto de documento vai na mensagem do usuário, entre marcadores, e o prompt de sistema manda tratar instruções dentro dele como conteúdo. Toda resposta é validada com Pydantic; uma resposta inválida recebe uma nova tentativa explicando o erro e depois é descartada.
+- **Organizar (provas enviadas).** Depois das regras, a IA recebe as linhas numeradas (`[n] texto`, imagens e tabelas como marcadores) e devolve **só um papel por linha**, dúvidas (viram perguntas de sim/não) e os dados do título. As mesmas partes são reagrupadas deterministicamente, rótulos voltam ao texto quando deixam de ser rótulos, e a **assinatura do texto** (todo o texto em ordem, sem espaços) precisa ser idêntica antes e depois; senão, fica a leitura por regras com um aviso.
+- **Criar.** O pedido do professor e o material enviado (Word, PDF e fotos; as fotos também vão como imagem) seguem com o `ai/manual_geracao.md`, um resumo das regras da pesquisa com 119 provas reais (sem textos de provas, nomes ou links). A resposta vira os mesmos blocos de sempre e o gabarito fica em `Exam.answer_key`, impresso num arquivo separado que nunca vai no e-mail da impressão. Refazer uma questão (outra, mais fácil, mais difícil) troca só aquele bloco e a entrada do gabarito.
+- **Aviso.** A tela inicial e a de envio dizem para onde vai o conteúdo; cada prova enviada pode ser lida sem IA.
+- **Sugestões antigas.** As rotas de sugestão por parte e de revisão de OCR (por caracteres, similaridade ≥ 85%) continuam no editor detalhado.
 
 ### 7. Armazenamento e tarefas
 
@@ -147,6 +152,7 @@ Escolhidas pela licença permissiva, suporte a Windows sem compilação e docume
 | Tesseract 5 + `por` (tessdata_best) | OCR | Apache-2.0 | Binário instalado à parte (UB Mannheim no Windows, apt no Linux). |
 | pytesseract, OpenCV (headless), NumPy, Pillow | pré-processamento e chamada do OCR | Apache-2.0 / BSD / HPND | — |
 | LibreOffice | DOCX → PDF | MPL-2.0 | Alternativa: Microsoft Word via pywin32 (só Windows). |
+| httpx | Cliente da IA do Heroku (streaming) | BSD-3-Clause | Também usado nos testes. |
 | google-genai (opcional) | Gemini | Apache-2.0 | Modelo configurável (`GEMINI_MODEL`). |
 | psycopg 3 | PostgreSQL | LGPL-3.0 | Usado como biblioteca, sem modificações. |
 | Caddy | proxy reverso e HTTPS automático | Apache-2.0 | Só no servidor. |

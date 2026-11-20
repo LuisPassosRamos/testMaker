@@ -2,7 +2,7 @@
 
 **Organizador de provas, atividades e revisões para impressão** — feito para a Escola Municipalizada Madre Mª do Rosário de Almeida II (Santo Antônio de Jesus – BA).
 
-O professor envia a prova do jeito que ela estiver (Word, PDF ou fotos), o Prova Pronta separa questões, alternativas, textos de apoio e imagens **sem reescrever nada**, o professor confere ao lado do original, ajusta a impressão com o cabeçalho da escola e envia o PDF e o Word direto para a equipe de impressão.
+O professor **cria a prova com inteligência artificial** a partir do que trabalhou em sala (conteúdos, plano de aula, fotos do caderno ou do livro), ou envia a prova do jeito que ela estiver (Word, PDF ou fotos). O Prova Pronta organiza questões, alternativas, textos de apoio e imagens no padrão da escola, o professor confere numa prévia com um ou dois cliques por ajuste e envia o PDF e o Word direto para a equipe de impressão. Provas criadas com IA vêm com **gabarito** separado, só para o professor.
 
 ![Tela de conferência: original à esquerda, conteúdo organizado à direita](docs/images/conferir.png)
 
@@ -14,10 +14,10 @@ O professor envia a prova do jeito que ela estiver (Word, PDF ou fotos), o Prova
 
 | Passo | O que acontece |
 |---|---|
-| **1. Enviar prova** | Escolha *Prova*, *Atividade* ou *Revisão*, preencha professor(a), disciplina, ano, turma, turno, tipo de avaliação (regular, final, parcial, recuperação…) e unidade, trimestre ou período. Envie um arquivo Word, um PDF ou fotos das páginas (na ordem certa) — ou cole o texto, ou crie do zero. |
-| **2. Conferir conteúdo** | O original fica ao lado do conteúdo organizado. Ao clicar num trecho, a mesma região é destacada no original. Trechos duvidosos aparecem marcados; correções suas ficam identificadas como “corrigido por você”, com o texto extraído a um clique. Dá para editar texto (negrito, itálico, sublinhado, x², H₂O), números e alternativas, mover/separar/juntar blocos, trocar imagens de questão, recortar figuras do original e definir espaços de resposta. Desfazer e refazer a qualquer momento. |
-| **3. Ajustar impressão** | Sai no **padrão das provas da escola**: cabeçalho em quadro com o logo, título como “Avaliação Final III Trimestre - Matemática 6º ano”, alternativas curtas lado a lado, linhas de resposta, moldura na página e frase de incentivo no final. Dá para mudar fonte, tamanho, espaçamento, 1 ou 2 colunas, margens e preto e branco. A prévia ao lado **é o próprio PDF**, e uma verificação automática avisa se faltou alguma questão ou alternativa, se algo saiu da margem, se passou de 4 páginas ou de 3 imagens por página, se a letra está pequena para o ano ou se uma questão depende de cores. |
-| **4. Baixar e enviar** | Baixe o PDF (pronto para imprimir) e o Word (editável) ou envie os dois para **escolamadre2impressoes@gmail.com** com turma, quantidade de cópias, frente e verso e observações. |
+| **1. Criar ou enviar** | Escolha como começar (**Criar com IA**, formatar uma prova pronta, colar o texto ou digitar), depois *Prova*, *Atividade* ou *Revisão* e os dados da turma **com botões**: disciplina, ano (1º a 9º), turma (A, B, C, Única ou Outra), turno, tipo de avaliação e unidade, trimestre ou período. Para formatar, envie Word, PDF ou fotos das páginas (na ordem certa) ou cole o texto. |
+| **2. Conferir** | A prova aparece **como vai ser impressa**. No topo, só os pontos que precisam de atenção, com respostas de um clique (“Sim, está certo”, “Inserir imagem”, “Trocar questão”). Ao tocar numa questão: editar texto, mais/menos linhas de resposta, imagem, “é texto de apoio”, juntar, apagar e, com IA, trocar/mais fácil/mais difícil e ver o gabarito. O original pode ser aberto ao lado. O **editor detalhado** (blocos, partes, recortes do original, desfazer/refazer) continua a um clique. |
+| **3. Ajustar impressão (opcional)** | A diagramação é automática. Sai no **padrão das provas da escola**: cabeçalho em quadro com o logo, título como “Avaliação Final III Trimestre - Matemática 6º ano”, alternativas curtas lado a lado, linhas de resposta, moldura na página e frase de incentivo no final. Dá para mudar fonte, tamanho, espaçamento, 1 ou 2 colunas, margens e preto e branco. A prévia ao lado **é o próprio PDF**, e uma verificação automática avisa se faltou alguma questão ou alternativa, se algo saiu da margem, se passou de 4 páginas ou de 3 imagens por página, se a letra está pequena para o ano ou se uma questão depende de cores. |
+| **4. Baixar e enviar** | Baixe o PDF (pronto para imprimir) e o Word (editável) ou envie os dois para **escolamadre2impressoes@gmail.com** com turma, quantidade de cópias, frente e verso e observações. O gabarito (provas criadas com IA) é baixado à parte e não vai para a impressão. |
 
 ![Ajuste de impressão com a prévia real do PDF](docs/images/ajustar.png)
 
@@ -25,9 +25,13 @@ O professor envia a prova do jeito que ela estiver (Word, PDF ou fotos), o Prova
 |---|---|---|
 | ![Tela inicial](docs/images/inicio.png) | ![Envio para a impressão](docs/images/finalizar.png) | ![Modelos de cabeçalho](docs/images/modelos.png) |
 
-### A regra principal: fidelidade
+### Criar com IA
 
-O Prova Pronta **organiza**; ele não escreve provas. Ele não reescreve enunciados, não corrige ortografia, não resolve questões, não troca nem reordena alternativas e não renumera nada: os números e letras ficam exatamente como estavam. Quando não tem certeza de algo, ele **avisa** em vez de “consertar”. A organização é feita por regras determinísticas — a IA é opcional e só sugere.
+Na tela inicial, **Criar com IA**: o professor escolhe disciplina, ano e tipo com botões, conta o que foi trabalhado (ou anexa o plano de aula, páginas do livro ou fotos do caderno) e escolhe quantidade de questões, tipos (objetivas, abertas ou misturadas) e nível. A IA segue um **manual de geração** tirado da análise de 119 provas reais da rede (estrutura por ano e disciplina, catálogo de tipos de questão, até 4 páginas, letra maior no 1º e 2º ano, imagens só quando indispensáveis) e devolve a prova no padrão da escola com gabarito e critérios. Na conferência, cada questão tem os botões **Trocar por outra**, **Mais fácil** e **Mais difícil**. Quando uma questão precisa de figura, a IA descreve a figura e o site pede que o professor a insira.
+
+### A regra principal ao formatar: fidelidade
+
+Ao formatar uma prova enviada, o Prova Pronta **organiza**; ele não reescreve enunciados, não corrige ortografia, não resolve questões e não renumera nada. A leitura usa regras determinísticas e, quando a IA está ligada, a IA confere **o papel de cada linha** (questão, alternativa, texto de apoio, cabeçalho…). Ela recebe as linhas numeradas e devolve só os papéis; o sistema reagrupa as mesmas partes e confere que o texto, lido em ordem, continua idêntico. Se algo não conferir, fica a leitura por regras. Quando não tem certeza, o site **pergunta** (“Esta linha começa a questão 4?”) em vez de “consertar”.
 
 ---
 
@@ -89,13 +93,13 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 2. Crie uma *senha de app* em <https://myaccount.google.com/apppasswords>.
 3. No `.env`: `MAIL_MODE=smtp`, `SMTP_USERNAME=conta@gmail.com`, `SMTP_PASSWORD=senha-de-app`.
 
-**IA opcional (Gemini):** preencha `GEMINI_API_KEY` para liberar o botão “Revisar com IA”. Cada uso pede confirmação, porque o conteúdo da prova é enviado ao Google. Sem a chave, nada sai do computador.
+**Inteligência artificial:** no Heroku, ligue o add-on *Managed Inference* (passo a passo em [docs/DEPLOY.md](docs/DEPLOY.md#ativar-a-intelig%C3%AAncia-artificial)); ele preenche `INFERENCE_URL` e `INFERENCE_KEY` sozinho. Os modelos são Claude Haiku 5.5 (organizar) e Claude Sonnet 5.5 (criar), trocáveis por `AI_MODEL_READ` e `AI_MODEL_WRITE`. Como alternativa, `GEMINI_API_KEY` usa o Gemini. Sem nenhum dos dois, a IA fica desligada, nada sai do computador e o site funciona com a leitura por regras.
 
 ---
 
 ## Privacidade e segurança
 
-- Nada é enviado a serviços externos sem ação explícita (e-mail para a impressão ou IA com confirmação). No servidor, os dados ficam no seu banco PostgreSQL.
+- O conteúdo só vai à IA quando ela está ligada no servidor, e a tela diz para onde vai (“A leitura e a criação usam IA (Claude) pelo Heroku. O conteúdo não é guardado nem usado para treinar a IA.”). Cada prova enviada pode ser lida **sem IA**. Instruções escritas dentro dos documentos são tratadas como conteúdo, nunca como comandos. No servidor, os dados ficam no seu banco PostgreSQL.
 - Na internet, o site exige o código da escola em toda a API, limita tentativas de login e envios por hora e usa HTTPS.
 - Arquivos enviados são tratados como não confiáveis: o tipo é identificado pelo conteúdo, há limites de tamanho/páginas/resolução, arquivos com macro são recusados e há proteção contra arquivos compactados maliciosos.
 - Provas não alteradas há mais de 72 h (configurável) são apagadas automaticamente, junto com os e-mails de teste.
@@ -112,7 +116,8 @@ O instalador cria o arquivo `.env` a partir de [`.env.example`](.env.example). P
 - A paginação do Word baixado pode variar um pouco se ele for aberto em outro programa; o PDF é a referência para impressão.
 - Acesso por um código único da escola, sem contas individuais por professor.
 - Um único servidor por instalação (as tarefas em segundo plano ficam na memória do processo).
-- Assistente de IA testado com respostas simuladas; não foi validado contra a API real nesta versão.
+- IA testada com respostas simuladas e com um servidor local que imita a API do Heroku; ainda não foi validada contra o Claude real.
+- PDF: alternativas em grade com texto quebrando em duas linhas podem misturar o fim de uma alternativa com a vizinha (raro; aparece na conferência).
 
 ---
 
@@ -161,5 +166,5 @@ A API documentada fica em <http://localhost:8000/api/docs>. Decisões técnicas,
 - **Output:** a single layout engine — python-docx — produces the school-standard Word file; LibreOffice (or MS Word) converts it to PDF; the preview *is* that PDF, and automatic checks compare it with the model (missing/duplicated/reordered questions, margins, A4, orphaned question numbers).
 - **Delivery:** e-mail to the print room via SMTP (local outbox by default).
 - **Hosting:** one Docker image (API, web app, LibreOffice, Tesseract) on Heroku's container stack (or behind Caddy on any Ubuntu VM), PostgreSQL on Neon as the durable store (local disk is a cache, so ephemeral hosts work too), a shared school access code with signed cookies, and CI that builds and smoke-tests the image.
-- **Optional AI:** Gemini only suggests labels or character-level OCR fixes; responses are strictly validated and applied one by one after explicit consent.
+- **AI (Heroku Managed Inference / Claude, or Gemini):** creates exams from the teacher's content following a generation manual distilled from 119 real exams (with a teacher-only answer key), and labels each line of an uploaded exam by number; parts are regrouped deterministically and the text signature must not change, otherwise the rule-based reading is kept. Document text is always sent as data. Without AI configured, everything still works rule-based.
 

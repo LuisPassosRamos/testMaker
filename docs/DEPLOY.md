@@ -35,6 +35,17 @@ Por que não as alternativas mais “simples”: no Render gratuito o site **dor
 
 Atualizações: cada envio para a `main` publica sozinho (depois que o CI passar, se marcar *Wait for CI to pass*).
 
+### Ativar a inteligência artificial
+
+A IA (criar provas e organizar as enviadas) usa o **Heroku Managed Inference**, add-on do próprio Heroku com modelos Claude hospedados na AWS. O Heroku não guarda os textos e não os usa para treinar modelos. A cobrança é por uso; o crédito de estudante cobre produtos do Heroku, e o que passar dos US$ 13/mês vai para o cartão.
+
+1. No terminal (com `heroku login` feito): `heroku addons:create heroku-inference:standard -a provamadre`. O add-on cria `INFERENCE_URL` e `INFERENCE_KEY` nas Config Vars e o app reinicia sozinho.
+2. Abra `/api/health`: em `ai` deve aparecer `"enabled": true` e `"provider": "heroku"`.
+3. No site, crie uma prova com IA e formate uma prova enviada. Depois, em **Billing**, confira o consumo do add-on (ou `heroku usage:addons -a provamadre`).
+4. Opcional: `AI_MODEL_READ` (padrão `claude-haiku-5-5`, organizar) e `AI_MODEL_WRITE` (padrão `claude-sonnet-5-5`, criar). `AI_READING=false` desliga a organização automática das provas enviadas.
+
+Custo aproximado (preços do add-on em nov/2026): organizar uma prova enviada ≈ US$ 0,02 (Haiku 5.5); criar uma prova ≈ US$ 0,10 (Sonnet 5.5). Para desligar a IA: `heroku addons:destroy heroku-inference -a provamadre` (o site volta à leitura por regras).
+
 ## Caminho B, passo 2: endereço curto (DuckDNS) — 2 minutos
 
 1. Entre em <https://www.duckdns.org> (login com Google/GitHub).
