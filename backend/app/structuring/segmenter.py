@@ -401,9 +401,12 @@ class Segmenter:
             for m in INLINE_ALT_RE.finditer(text):
                 if m.start() == 0:
                     continue
-                if m.group("letter").lower() == expected.lower():
+                # A label after a tab or a wide gap is always a new option, even out of order: options in
+                # a grid are often written by column ("A) …⇥C) …" over "B) …⇥D) …").
+                gap_before = text[:m.start()].endswith(("\t", "  "))
+                if m.group("letter").lower() == expected.lower() or gap_before:
                     cuts.append((m.start(), m.end(), text[m.start():m.end()].strip()))
-                    expected = chr(ord(expected) + 1)
+                    expected = chr(ord(m.group("letter").lower()) + 1)
             if cuts:
                 pieces = []
                 label = alt.label
@@ -541,6 +544,7 @@ class Segmenter:
                 block.answer_space = tail.answer or AnswerSpace()
             if block.kind != "question":
                 continue
+            _restore_grid_order(block)
             alternatives = [p for p in block.parts if p.kind == "alternative"]
             letters = [_letter(p.label) for p in alternatives]
             letters = [x for x in letters if x]
@@ -601,6 +605,25 @@ def _letter(label: str | None) -> str | None:
         return None
     m = re.search(r"[a-hA-H]", label)
     return m.group(0) if m else None
+
+
+def _restore_grid_order(block: Block) -> None:
+    """Options written in a grid by column ("A) …  C) …" over "B) …  D) …") are read row by row as
+    A, C, B, D. When the letters are exactly a, b, c… just shuffled, put them back in order."""
+    slots = [i for i, p in enumerate(block.parts) if p.kind == "alternative"]
+    if len(slots) < 3 or slots != list(range(slots[0], slots[0] + len(slots))):
+        return
+    letters = [(_letter(block.parts[i].label) or "").lower() for i in slots]
+    expected = [chr(ord("a") + k) for k in range(len(slots))]
+    if letters == expected or sorted(letters) != expected:
+        return
+    ordered = sorted((block.parts[i] for i in slots), key=lambda p: (_letter(p.label) or "").lower())
+    for i, part in zip(slots, ordered, strict=True):
+        block.parts[i] = part
+    block.issues.append(_issue(
+        "alternatives_reordered",
+        "As alternativas estavam em colunas no original e foram colocadas na ordem A, B, C, D.", "info",
+    ))
 
 
 def segment(items: list[Item]) -> SegmentResult:

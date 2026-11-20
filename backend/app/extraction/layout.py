@@ -11,7 +11,7 @@ import statistics
 from dataclasses import dataclass, field
 
 from app.domain.models import Run, merge_runs
-from app.structuring.patterns import ALT_RE, is_structural_start
+from app.structuring.patterns import ALT_RE, is_structural_start, match_question
 
 
 @dataclass
@@ -83,9 +83,12 @@ class Line:
                 glued = (w.sup or w.sub or prev.sup or prev.sub) and w.x0 - prev.x1 < w.height * 0.25
                 # Fill-in blanks inside a word ("pa__aro") keep no spaces around them.
                 glued = glued or ((w.blank or prev.blank) and w.x0 - prev.x1 < max(w.height, prev.height) * 0.2)
+                # A wide gap separates options laid side by side ("( ) um lugar.    ( ) um animal."):
+                # keep it as a tab, as Word files do, so the options can still be told apart.
+                wide = w.x0 - prev.x1 > max(w.height, prev.height) * 1.5
                 if not glued:
-                    runs.append(Run(text=" ", bold=w.bold and prev.bold, italic=w.italic and prev.italic,
-                                    underline=w.underline and prev.underline))
+                    runs.append(Run(text="\t" if wide else " ", bold=w.bold and prev.bold,
+                                    italic=w.italic and prev.italic, underline=w.underline and prev.underline))
             runs.append(Run(text=w.text, bold=w.bold, italic=w.italic, underline=w.underline, sup=w.sup, sub=w.sub))
         return merge_runs(runs)
 
@@ -255,10 +258,19 @@ def order_page_lines(
     ordered: list[Line] = []
     left_buf: list[Line] = []
     right_buf: list[Line] = []
+    real_columns = False
 
     def flush() -> None:
-        ordered.extend(sorted(left_buf, key=lambda ln: ln.top))
-        ordered.extend(sorted(right_buf, key=lambda ln: ln.top))
+        nonlocal real_columns
+        left = sorted(left_buf, key=lambda ln: ln.top)
+        right = sorted(right_buf, key=lambda ln: ln.top)
+        if _is_option_grid(left, right):
+            # "A) …   B) …" over "C) …   D) …": options in a grid are read row by row.
+            ordered.extend(_grid_order(left, right))
+        else:
+            real_columns = real_columns or bool(left and right)
+            ordered.extend(left)
+            ordered.extend(right)
         left_buf.clear()
         right_buf.clear()
 
@@ -280,7 +292,39 @@ def order_page_lines(
         if right_words:
             right_buf.append(Line(words=right_words, page=page, column=2, col_x0=g1, col_x1=text_x1))
     flush()
-    return ordered, True
+    return ordered, real_columns
+
+
+def _is_option_grid(left: list[Line], right: list[Line]) -> bool:
+    """Short side-by-side runs that both start with option labels and hold no question."""
+    if not left or not right or len(left) > 16 or len(right) > 16:
+        return False
+    if not (ALT_RE.match(left[0].text) and ALT_RE.match(right[0].text)):
+        return False
+    return not any(match_question(ln.text) for ln in (*left, *right))
+
+
+def _grid_order(left: list[Line], right: list[Line]) -> list[Line]:
+    """Group each column's lines into options (a label line plus its wrapped lines), then order the
+    options by row and column so they read A, B, C, D."""
+    items: list[tuple[float, int, list[Line]]] = []
+    for column, lines in ((1, left), (2, right)):
+        current: list[Line] = []
+        for line in lines:
+            if current and ALT_RE.match(line.text):
+                items.append((current[0].top, column, current))
+                current = []
+            current.append(line)
+        if current:
+            items.append((current[0].top, column, current))
+    tolerance = max((ln.height for ln in (*left, *right)), default=10) * 0.6
+    rows: list[list[tuple[float, int, list[Line]]]] = []
+    for item in sorted(items, key=lambda it: it[0]):
+        if rows and abs(rows[-1][0][0] - item[0]) <= tolerance:
+            rows[-1].append(item)
+        else:
+            rows.append([item])
+    return [ln for row in rows for _, _, lines in sorted(row, key=lambda it: it[1]) for ln in lines]
 
 
 # ------------------------------------------------------------------ paragraphs

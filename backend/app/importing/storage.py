@@ -22,6 +22,7 @@ import re
 import secrets
 import shutil
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -123,7 +124,15 @@ class ProjectStore:
             with self.lock(pid):
                 if not path.is_file() and not self._restore(pid):
                     raise ProjectNotFound(pid)
-        return Project.model_validate_json(path.read_text(encoding="utf-8"))
+        for attempt in range(5):
+            try:
+                return Project.model_validate_json(path.read_text(encoding="utf-8"))
+            except PermissionError:
+                # Windows refuses to open a file while another thread atomically replaces it.
+                if attempt == 4:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+        raise AssertionError("unreachable")
 
     def save(self, project: Project, *, bump: bool = True) -> Project:
         with self.lock(project.id):
