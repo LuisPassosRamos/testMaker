@@ -57,7 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             task.cancel()
-            svc.jobs.pool.shutdown(wait=False, cancel_futures=True)
+            svc.jobs.shutdown()
 
     app = FastAPI(title="Prova Pronta", version=__version__, lifespan=lifespan,
                   docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)

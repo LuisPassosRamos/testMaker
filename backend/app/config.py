@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     ai_timeout_s: int = Field(240, ge=10, le=900)
     # Organise every uploaded exam with AI automatically (teachers can still choose "ler sem IA").
     ai_reading: bool = True
+    # Requests that create or redo content with AI, per device per hour (keeps spending predictable).
+    max_ai_requests_per_hour: int = Field(40, ge=1, le=1000)
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.6-flash"
     gemini_timeout_s: int = 90

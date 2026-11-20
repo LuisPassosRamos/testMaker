@@ -153,6 +153,20 @@ def test_redo_one_question_keeps_its_place_and_number(ai_client):
     assert "MAIS FÁCIL" in prompt and "Marque V ou F" in prompt
 
 
+def test_ai_requests_are_limited_per_hour(settings, monkeypatch):
+    configured = settings.model_copy(update={
+        "inference_url": "https://inference.example", "inference_key": SecretStr("k"), "ai_provider": "heroku",
+        "max_ai_requests_per_hour": 2})
+    monkeypatch.setattr(creation, "get_model", lambda _s, task="read": FakeWriter(GENERATED))
+    with TestClient(create_app(configured)) as c:
+        pid = _project(c)["id"]
+        for _ in range(2):
+            assert c.post(f"/api/projects/{pid}/ai/generate", json={"conteudo": "água"}).status_code == 200
+            wait_job(c, pid)
+        res = c.post(f"/api/projects/{pid}/ai/generate", json={"conteudo": "água"})
+        assert res.status_code == 429 and "Espere" in res.json()["detail"]["message"]
+
+
 def test_ai_endpoints_explain_when_ai_is_not_configured(client):
     pid = client.post("/api/projects", json={"start_mode": "generate"}).json()["id"]
     res = client.post(f"/api/projects/{pid}/ai/generate", json={"conteudo": "frações"})

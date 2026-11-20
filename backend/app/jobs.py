@@ -29,6 +29,9 @@ class JobRunner:
     def __init__(self, store: ProjectStore, workers: int = 2):
         self.store = store
         self.pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="job")
+        # AI jobs mostly wait for the network and use little memory: their own small pool, so a teacher
+        # creating an exam (1–2 minutes) never holds up another teacher's PDF.
+        self.ai_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ai-job")
         self._running: dict[str, str] = {}  # project id -> job kind
         self._guard = threading.Lock()
         self.results: dict[str, object] = {}  # job id -> result (render results)
@@ -45,8 +48,13 @@ class JobRunner:
         job = JobState(kind=kind, status="running", stage="start", message="Começando…", progress=0.0,  # type: ignore[arg-type]
                        started_at=utcnow())
         self._update(pid, job)
-        self.pool.submit(self._run, pid, job, work, failure_message)
+        pool = self.ai_pool if kind in ("generate", "organize") else self.pool
+        pool.submit(self._run, pid, job, work, failure_message)
         return job
+
+    def shutdown(self) -> None:
+        for pool in (self.pool, self.ai_pool):
+            pool.shutdown(wait=False, cancel_futures=True)
 
     def _update(self, pid: str, job: JobState) -> None:
         def apply(p: Project) -> None:

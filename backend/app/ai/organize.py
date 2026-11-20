@@ -173,7 +173,8 @@ def organize_blocks(blocks: list[Block], model: JsonModel, meta: ExamMeta | None
     changed = 0
     for entry, after in zip(entries, roles, strict=True):
         before = _current_role(entry)
-        if before == after or {before, after} <= {"apoio_inicio", "apoio"} or entry.part.id in placeholders:
+        same = before == after or {before, after} <= {"apoio_inicio", "apoio"} or {before, after} <= {"outro", "encerramento"}
+        if same or entry.part.id in placeholders:
             continue
         changed += 1
         entry.part.issues = [i for i in entry.part.issues if i.code not in _GUESS_CODES]

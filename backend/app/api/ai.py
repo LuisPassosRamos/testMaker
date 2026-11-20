@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from app.ai.base import AiError, AiUnavailable
@@ -41,6 +41,15 @@ def _require_ai(svc: Services) -> None:
         raise api_error(503, "ai_unavailable", "A inteligência artificial ainda não foi configurada neste site.")
 
 
+def _limit(svc: Services, request: Request, pid: str) -> None:
+    """Keep AI spending predictable: per device and per exam, per hour."""
+    client = request.client.host if request.client else "?"
+    per_hour = svc.settings.max_ai_requests_per_hour
+    if not svc.limiter.allow(f"ai:{client}", per_hour, 3600) or not svc.limiter.allow(f"ai-project:{pid}", 20, 3600):
+        raise api_error(429, "too_many_ai_requests",
+                        "Muitos pedidos à IA em pouco tempo. Espere alguns minutos e tente de novo.")
+
+
 def _start(svc: Services, pid: str, kind: str, work, failure: str) -> JobState:
     try:
         return svc.jobs.start(pid, kind, work, failure)
@@ -55,31 +64,41 @@ def set_use_ai(pid: str, body: UseAiRequest, svc: Services = Depends(services)) 
 
 
 @router.post("/{pid}/ai/generate", response_model=JobState)
-def ai_generate(pid: str, body: GenerationRequest, svc: Services = Depends(services)) -> JobState:
+def ai_generate(pid: str, body: GenerationRequest, request: Request, svc: Services = Depends(services)) -> JobState:
     load_project(svc, pid)
     _require_ai(svc)
+    if svc.jobs.is_running(pid):
+        raise api_error(409, "job_running", "Já existe um processamento em andamento para esta prova.")
+    _limit(svc, request, pid)
     svc.store.mutate(pid, lambda p: setattr(p, "generation", body))
     return _start(svc, pid, "generate", lambda progress: run_generation(svc.store, svc.settings, pid, progress),
                   "Não foi possível criar a prova agora. O pedido ficou salvo: tente de novo em instantes.")
 
 
 @router.post("/{pid}/ai/question/{block_id}", response_model=JobState)
-def ai_question(pid: str, block_id: str, body: QuestionRequest, svc: Services = Depends(services)) -> JobState:
+def ai_question(pid: str, block_id: str, body: QuestionRequest, request: Request,
+                svc: Services = Depends(services)) -> JobState:
     project = load_project(svc, pid)
     _require_ai(svc)
     if not any(b.id == block_id and b.kind == "question" for b in project.exam.blocks):
         raise api_error(404, "block_not_found", "Questão não encontrada. Recarregue a página.")
+    if svc.jobs.is_running(pid):
+        raise api_error(409, "job_running", "Já existe um processamento em andamento para esta prova.")
+    _limit(svc, request, pid)
     return _start(svc, pid, "generate",
                   lambda progress: run_regenerate(svc.store, svc.settings, pid, block_id, body.action, progress),
                   "Não foi possível refazer a questão agora. Nada foi alterado.")
 
 
 @router.post("/{pid}/ai/organize", response_model=JobState)
-def ai_organize(pid: str, svc: Services = Depends(services)) -> JobState:
+def ai_organize(pid: str, request: Request, svc: Services = Depends(services)) -> JobState:
     project = load_project(svc, pid)
     _require_ai(svc)
     if not project.exam.blocks:
         raise api_error(400, "empty", "Ainda não há conteúdo para organizar.")
+    if svc.jobs.is_running(pid):
+        raise api_error(409, "job_running", "Já existe um processamento em andamento para esta prova.")
+    _limit(svc, request, pid)
     return _start(svc, pid, "organize", lambda progress: run_organize(svc.store, svc.settings, pid, progress),
                   "Não foi possível reorganizar agora. Nada foi alterado.")
 
