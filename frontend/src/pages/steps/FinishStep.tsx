@@ -5,11 +5,12 @@ import { ApiError, api, urls } from '../../api/client'
 import type { PrintRequest } from '../../api/types'
 import { Dialog } from '../../components/Dialog'
 import { toast } from '../../components/Toast'
-import { Alert, Button, Card, Field, Input, Select, Toggle, inputClass } from '../../components/ui'
+import { ChoiceChips, PeriodChoice, formatPeriod, parsePeriod } from '../../components/ChoiceChips'
+import { Alert, Button, Card, Field, Input, Toggle, inputClass } from '../../components/ui'
 import { useSystem } from '../../hooks/useHealth'
 import { useRender } from '../../hooks/useRender'
 import { allOpenIssues } from '../../lib/exam-ops'
-import { ANOS, DOC_TYPES, PERIOD_OPTIONS, PERIODOS, TURNOS } from '../../lib/labels'
+import { ANO_CHIPS, DISCIPLINAS, DOC_TYPES, PERIODOS, TURMAS, TURNOS } from '../../lib/labels'
 import { loadProfile, saveProfile } from '../../lib/recent'
 import { useExamStore } from '../../store/examStore'
 import { CheckList } from '../review/PdfPreview'
@@ -197,42 +198,36 @@ export default function FinishStep() {
               <Field label="Professor(a)" required error={errors.professor} className="sm:col-span-2">
                 {(id, d) => <Input id={id} aria-describedby={d} aria-invalid={!!errors.professor} value={form.professor} onChange={(e) => set('professor', e.target.value)} />}
               </Field>
-              <Field label="Disciplina" required error={errors.disciplina}>
-                {(id, d) => <Input id={id} aria-describedby={d} aria-invalid={!!errors.disciplina} value={form.disciplina} onChange={(e) => set('disciplina', e.target.value)} />}
-              </Field>
-              <Field label="Ano" required error={errors.ano}>
-                {(id, d) => (
-                  <Select id={id} aria-describedby={d} aria-invalid={!!errors.ano} value={form.ano} onChange={(e) => set('ano', e.target.value)}>
-                    <option value="">Escolha…</option>
-                    {ANOS.map((a) => (
-                      <option key={a}>{a}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <Field label="Turma" required error={errors.turma}>
-                {(id, d) => <Input id={id} aria-describedby={d} aria-invalid={!!errors.turma} value={form.turma} onChange={(e) => set('turma', e.target.value)} />}
-              </Field>
-              <Field label="Turno">
-                {(id) => (
-                  <Select id={id} value={form.turno} onChange={(e) => set('turno', e.target.value)}>
-                    <option value="">—</option>
-                    {TURNOS.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <Field label="Unidade / período">
-                {(id) => (
-                  <Select id={id} value={form.unidade} onChange={(e) => set('unidade', e.target.value)}>
-                    <option value="">—</option>
-                    {PERIOD_OPTIONS.map((o) => (
-                      <option key={o.value}>{o.label}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
+              <ChoiceChips
+                className="sm:col-span-2"
+                label="Disciplina"
+                required
+                error={errors.disciplina}
+                value={form.disciplina}
+                options={DISCIPLINAS}
+                onChange={(v) => set('disciplina', v)}
+                other="Outra"
+                otherPlaceholder="Escreva a disciplina"
+              />
+              <ChoiceChips className="sm:col-span-2" label="Ano" required error={errors.ano} value={form.ano} options={ANO_CHIPS} onChange={(v) => set('ano', v)} />
+              <ChoiceChips
+                label="Turma"
+                required
+                error={errors.turma}
+                value={form.turma}
+                options={TURMAS}
+                onChange={(v) => set('turma', v)}
+                other="Outra"
+                otherPlaceholder="Ex.: D ou 5º A/B"
+                otherMaxLength={20}
+              />
+              <ChoiceChips label="Turno" value={form.turno} options={TURNOS} onChange={(v) => set('turno', v)} />
+              <PeriodChoice
+                className="sm:col-span-2"
+                label="Unidade / período"
+                {...parsePeriod(form.unidade)}
+                onChange={(p) => set('unidade', formatPeriod(p.unidade, p.periodo))}
+              />
               <Field label="Data de aplicação" hint="dd/mm/aaaa">
                 {(id, d) => <Input id={id} aria-describedby={d} value={form.data_aplicacao} onChange={(e) => set('data_aplicacao', e.target.value)} />}
               </Field>

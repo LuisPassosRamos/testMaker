@@ -21,9 +21,10 @@ import type { DocType, ExamMeta, Modalidade, Project, ProjectSummary } from '../
 import { confirmDialog } from '../components/Dialog'
 import { GlobePattern } from '../components/GlobePattern'
 import { toast } from '../components/Toast'
-import { Alert, Button, Card, Field, Input, Select, cx } from '../components/ui'
+import { ChoiceChips, PeriodChoice } from '../components/ChoiceChips'
+import { Alert, Button, Card, Field, Input, cx } from '../components/ui'
 import { useSystem } from '../hooks/useHealth'
-import { ANOS, DISCIPLINAS, DOC_TYPES, MODALIDADES, PERIOD_OPTIONS, TURNOS, examTitle, formatDateBR, relativeTime } from '../lib/labels'
+import { ANO_CHIPS, DISCIPLINAS, DOC_TYPES, MODALIDADE_CHIPS, TURMAS, TURNOS, examTitle, formatDateBR, relativeTime } from '../lib/labels'
 import { forgetProject, loadProfile, recentIds, rememberProject, saveProfile } from '../lib/recent'
 
 const TYPE_ICONS: Record<DocType, ReactNode> = {
@@ -117,7 +118,15 @@ export default function HomePage() {
     if (ids.length) api.summaries(ids).then(setRecent).catch(() => undefined)
   }, [])
 
-  const set = (key: keyof ExamMeta) => (value: string) => setMeta((m) => ({ ...m, [key]: value }))
+  const set = (key: keyof ExamMeta) => (value: string) => {
+    setMeta((m) => ({ ...m, [key]: value }))
+    setErrors((e) => {
+      if (!e[key]) return e
+      const rest = { ...e }
+      delete rest[key]
+      return rest
+    })
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -231,10 +240,11 @@ export default function HomePage() {
             <fieldset>
               <legend className="mb-3 text-lg font-extrabold text-brand-900">2. Dados da turma</legend>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Professor(a)" id="campo-professor" required error={errors.professor}>
+                <Field label="Professor(a)" id="campo-professor" required error={errors.professor} className="sm:col-span-2">
                   {(id, d) => (
                     <Input
                       id={id}
+                      className="max-w-md"
                       aria-describedby={d}
                       aria-invalid={!!errors.professor}
                       autoComplete="name"
@@ -244,100 +254,58 @@ export default function HomePage() {
                     />
                   )}
                 </Field>
-                <Field label="Disciplina" id="campo-disciplina" required error={errors.disciplina}>
-                  {(id, d) => (
-                    <>
-                      <Input
-                        id={id}
-                        list="disciplinas"
-                        aria-describedby={d}
-                        aria-invalid={!!errors.disciplina}
-                        value={meta.disciplina}
-                        onChange={(e) => set('disciplina')(e.target.value)}
-                        placeholder="Ex.: Matemática"
-                      />
-                      <datalist id="disciplinas">
-                        {DISCIPLINAS.map((d) => (
-                          <option key={d} value={d} />
-                        ))}
-                      </datalist>
-                    </>
-                  )}
-                </Field>
-                <Field label="Ano" id="campo-ano" required error={errors.ano}>
-                  {(id, d) => (
-                    <Select
-                      id={id}
-                      aria-describedby={d}
-                      aria-invalid={!!errors.ano}
-                      value={meta.ano}
-                      onChange={(e) => set('ano')(e.target.value)}
-                    >
-                      <option value="">Escolha…</option>
-                      {ANOS.map((a) => (
-                        <option key={a}>{a}</option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
-                <Field label="Turma" id="campo-turma" required error={errors.turma} hint="Ex.: A, B ou Única">
-                  {(id, d) => (
-                    <Input
-                      id={id}
-                      aria-describedby={d}
-                      aria-invalid={!!errors.turma}
-                      value={meta.turma}
-                      onChange={(e) => set('turma')(e.target.value)}
-                      maxLength={20}
-                    />
-                  )}
-                </Field>
-                <Field label="Turno">
-                  {(id) => (
-                    <Select id={id} value={meta.turno} onChange={(e) => set('turno')(e.target.value)}>
-                      <option value="">Não informar</option>
-                      {TURNOS.map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
+                <ChoiceChips
+                  id="campo-disciplina"
+                  className="sm:col-span-2"
+                  label="Disciplina"
+                  required
+                  error={errors.disciplina}
+                  value={meta.disciplina}
+                  options={DISCIPLINAS}
+                  onChange={set('disciplina')}
+                  other="Outra"
+                  otherPlaceholder="Escreva a disciplina"
+                />
+                <ChoiceChips
+                  id="campo-ano"
+                  className="sm:col-span-2"
+                  label="Ano"
+                  required
+                  error={errors.ano}
+                  value={meta.ano}
+                  options={ANO_CHIPS}
+                  onChange={set('ano')}
+                />
+                <ChoiceChips
+                  id="campo-turma"
+                  className="sm:col-span-2"
+                  label="Turma"
+                  required
+                  error={errors.turma}
+                  value={meta.turma}
+                  options={TURMAS}
+                  onChange={set('turma')}
+                  other="Outra"
+                  otherPlaceholder="Ex.: D ou 5º A/B"
+                  otherMaxLength={20}
+                />
+                <ChoiceChips className="sm:col-span-2" label="Turno" value={meta.turno} options={TURNOS} onChange={set('turno')} hint="Opcional. Toque de novo para desmarcar." />
                 {meta.doc_type === 'prova' && (
-                  <Field label="Tipo de avaliação">
-                    {(id) => (
-                      <Select
-                        id={id}
-                        value={meta.modalidade}
-                        onChange={(e) => setMeta((m) => ({ ...m, modalidade: e.target.value as Modalidade }))}
-                      >
-                        {(Object.keys(MODALIDADES) as Modalidade[]).map((k) => (
-                          <option key={k} value={k}>
-                            {MODALIDADES[k].label}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
-                  </Field>
+                  <ChoiceChips
+                    className="sm:col-span-2"
+                    label="Tipo de avaliação"
+                    required
+                    value={meta.modalidade}
+                    options={MODALIDADE_CHIPS}
+                    onChange={(v) => setMeta((m) => ({ ...m, modalidade: v as Modalidade }))}
+                  />
                 )}
-                <Field label="Unidade, trimestre ou período">
-                  {(id) => (
-                    <Select
-                      id={id}
-                      value={meta.unidade ? `${meta.unidade}|${meta.periodo}` : ''}
-                      onChange={(e) => {
-                        const option = PERIOD_OPTIONS.find((o) => o.value === e.target.value)
-                        setMeta((m) => ({ ...m, unidade: option?.unidade ?? '', periodo: option?.periodo ?? 'unidade' }))
-                      }}
-                    >
-                      <option value="">Não informar</option>
-                      {PERIOD_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
+                <PeriodChoice
+                  className="sm:col-span-2"
+                  unidade={meta.unidade}
+                  periodo={meta.periodo}
+                  onChange={(p) => setMeta((m) => ({ ...m, ...p }))}
+                />
                 <Field label={meta.doc_type === 'atividade' ? 'Data da atividade' : 'Data de aplicação'} hint="Pode deixar em branco para o aluno preencher.">
                   {(id, d) => <Input id={id} aria-describedby={d} type="date" value={dateIso} onChange={(e) => setDateIso(e.target.value)} />}
                 </Field>

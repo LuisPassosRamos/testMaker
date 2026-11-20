@@ -41,25 +41,21 @@ export const UNIDADES = ['I', 'II', 'III', 'IV']
 
 export const PERIODOS: Record<Periodo, string> = { unidade: 'Unidade', trimestre: 'Trimestre', periodo: 'Período' }
 
-/** One list for the period select: "I Unidade" … "III Trimestre" … "II Período". */
-export const PERIOD_OPTIONS: { value: string; label: string; unidade: string; periodo: Periodo }[] = (
-  [
-    ['unidade', ['I', 'II', 'III', 'IV']],
-    ['trimestre', ['I', 'II', 'III']],
-    ['periodo', ['I', 'II', 'III', 'IV']],
-  ] as [Periodo, string[]][]
-).flatMap(([periodo, numerals]) =>
-  numerals.map((n) => ({ value: `${n}|${periodo}`, label: `${n} ${PERIODOS[periodo]}`, unidade: n, periodo })),
-)
-
-export const MODALIDADES: Record<Modalidade, { label: string; word: string }> = {
-  regular: { label: 'Avaliação regular', word: '' },
-  final: { label: 'Avaliação final', word: 'Final' },
-  parcial: { label: 'Parcial', word: 'Parcial' },
-  recuperacao: { label: 'Recuperação', word: 'de Recuperação' },
-  segunda_chamada: { label: 'Segunda chamada', word: 'de Segunda Chamada' },
-  simulado: { label: 'Simulado', word: '' },
+export const MODALIDADES: Record<Modalidade, { label: string; chip: string; word: string }> = {
+  regular: { label: 'Avaliação regular', chip: 'Regular', word: '' },
+  final: { label: 'Avaliação final', chip: 'Final', word: 'Final' },
+  parcial: { label: 'Parcial', chip: 'Parcial', word: 'Parcial' },
+  recuperacao: { label: 'Recuperação', chip: 'Recuperação', word: 'de Recuperação' },
+  segunda_chamada: { label: 'Segunda chamada', chip: 'Segunda chamada', word: 'de Segunda Chamada' },
+  simulado: { label: 'Simulado', chip: 'Simulado', word: '' },
 }
+
+export const TURMAS = ['A', 'B', 'C', 'Única']
+
+/** Chips for the school years: short text ("1º") with the full name for screen readers. */
+export const ANO_CHIPS = ANOS.map((a) => ({ value: a, label: a.replace(' ano', ''), ariaLabel: a }))
+
+export const MODALIDADE_CHIPS = (Object.keys(MODALIDADES) as Modalidade[]).map((k) => ({ value: k, label: MODALIDADES[k].chip }))
 
 export const MENSAGENS_FINAIS = ['Boa prova!', 'Você consegue!', 'Você é capaz!!', 'Eu acredito em você!']
 

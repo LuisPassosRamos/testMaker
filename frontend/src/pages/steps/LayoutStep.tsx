@@ -8,7 +8,8 @@ import { Button, Card, Field, Input, Segmented, Select, Toggle } from '../../com
 import { useSystem } from '../../hooks/useHealth'
 import { useRender } from '../../hooks/useRender'
 import { findBlock } from '../../lib/exam-ops'
-import { ANOS, MENSAGENS_FINAIS, MODALIDADES, PERIOD_OPTIONS, examTitle } from '../../lib/labels'
+import { ChoiceChips, PeriodChoice } from '../../components/ChoiceChips'
+import { ANO_CHIPS, MENSAGENS_FINAIS, MODALIDADE_CHIPS, TURMAS, examTitle } from '../../lib/labels'
 import { flushSave, useExamStore } from '../../store/examStore'
 import { CheckList, PdfPreview } from '../review/PdfPreview'
 
@@ -181,50 +182,35 @@ export default function LayoutStep() {
               <Field label="Disciplina" className="col-span-2">
                 {(id) => <Input id={id} key={exam.meta.disciplina} defaultValue={exam.meta.disciplina} onBlur={(e) => e.target.value !== exam.meta.disciplina && setMeta({ disciplina: e.target.value })} />}
               </Field>
-              <Field label="Ano">
-                {(id) => (
-                  <Select id={id} value={exam.meta.ano} onChange={(e) => setMeta({ ano: e.target.value })}>
-                    {ANOS.map((a) => (
-                      <option key={a}>{a}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <Field label="Turma">
-                {(id) => <Input id={id} key={exam.meta.turma} defaultValue={exam.meta.turma} onBlur={(e) => e.target.value !== exam.meta.turma && setMeta({ turma: e.target.value })} />}
-              </Field>
+              <ChoiceChips className="col-span-2" label="Ano" required value={exam.meta.ano} options={ANO_CHIPS} onChange={(v) => setMeta({ ano: v })} />
+              <ChoiceChips
+                className="col-span-2"
+                label="Turma"
+                value={exam.meta.turma}
+                options={TURMAS}
+                onChange={(v) => setMeta({ turma: v })}
+                other="Outra"
+                otherPlaceholder="Ex.: D ou 5º A/B"
+                otherMaxLength={20}
+                otherCommit="blur"
+              />
               {exam.meta.doc_type === 'prova' && (
-                <Field label="Tipo de avaliação">
-                  {(id) => (
-                    <Select id={id} value={exam.meta.modalidade ?? 'regular'} onChange={(e) => setMeta({ modalidade: e.target.value as Modalidade })}>
-                      {(Object.keys(MODALIDADES) as Modalidade[]).map((k) => (
-                        <option key={k} value={k}>
-                          {MODALIDADES[k].label}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
+                <ChoiceChips
+                  className="col-span-2"
+                  label="Tipo de avaliação"
+                  required
+                  value={exam.meta.modalidade ?? 'regular'}
+                  options={MODALIDADE_CHIPS}
+                  onChange={(v) => setMeta({ modalidade: v as Modalidade })}
+                />
               )}
-              <Field label="Período">
-                {(id) => (
-                  <Select
-                    id={id}
-                    value={exam.meta.unidade ? `${exam.meta.unidade}|${exam.meta.periodo ?? 'unidade'}` : ''}
-                    onChange={(e) => {
-                      const option = PERIOD_OPTIONS.find((o) => o.value === e.target.value)
-                      setMeta({ unidade: option?.unidade ?? '', periodo: option?.periodo ?? 'unidade' })
-                    }}
-                  >
-                    <option value="">—</option>
-                    {PERIOD_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
+              <PeriodChoice
+                className="col-span-2"
+                label="Período"
+                unidade={exam.meta.unidade}
+                periodo={exam.meta.periodo ?? 'unidade'}
+                onChange={(p) => setMeta(p)}
+              />
               <Field label="Data">
                 {(id) => <Input id={id} key={exam.meta.data} placeholder="dd/mm/aaaa" defaultValue={exam.meta.data} onBlur={(e) => e.target.value !== exam.meta.data && setMeta({ data: e.target.value })} />}
               </Field>
