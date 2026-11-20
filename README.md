@@ -46,13 +46,13 @@ Uma prova por vez. Envio em lote de várias provas ainda não existe.
 
 ## No ar para os professores
 
-O jeito recomendado é um servidor gratuito sempre ligado com um endereço curto, por exemplo **provamadre.duckdns.org**:
+O site está no ar em **<https://provamadre-e34ad34b056f.herokuapp.com>**:
 
-- **Servidor:** Oracle Cloud *Always Free* em São Paulo (Docker, HTTPS automático com Caddy).
-- **Banco de dados:** PostgreSQL gratuito no Neon (São Paulo) — guarda provas em andamento, arquivos e modelos de cabeçalho.
+- **Servidor:** Heroku, plano Basic (sempre ligado), pago com o crédito do GitHub Student Developer Pack. Cada envio para a `main` publica sozinho depois que o CI passa.
+- **Banco de dados:** PostgreSQL gratuito no Neon (AWS US East, perto do servidor) — guarda provas em andamento, arquivos e modelos de cabeçalho.
 - **Acesso:** um **código da escola** que cada professor digita uma vez por aparelho.
 
-O passo a passo completo, com os scripts prontos, está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. Para usar só num computador da escola, siga a instalação abaixo.
+O passo a passo completo, inclusive o caminho com servidor próprio (Oracle ou qualquer Ubuntu), está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. Para usar só num computador da escola, siga a instalação abaixo.
 
 ---
 
@@ -160,6 +160,6 @@ A API documentada fica em <http://localhost:8000/api/docs>. Decisões técnicas,
 - **Review UI:** side-by-side with the original, highlight-on-select, crop tool, rich-text editing limited to exam formatting, undo/redo, autosave with offline recovery.
 - **Output:** a single layout engine — python-docx — produces the school-standard Word file; LibreOffice (or MS Word) converts it to PDF; the preview *is* that PDF, and automatic checks compare it with the model (missing/duplicated/reordered questions, margins, A4, orphaned question numbers).
 - **Delivery:** e-mail to the print room via SMTP (local outbox by default).
-- **Hosting:** one Docker image (API, web app, LibreOffice, Tesseract) behind Caddy on a free Oracle Cloud VM, PostgreSQL on Neon as the durable store (local disk is a cache, so ephemeral hosts work too), a shared school access code with signed cookies, and CI that builds and smoke-tests the image.
+- **Hosting:** one Docker image (API, web app, LibreOffice, Tesseract) on Heroku's container stack (or behind Caddy on any Ubuntu VM), PostgreSQL on Neon as the durable store (local disk is a cache, so ephemeral hosts work too), a shared school access code with signed cookies, and CI that builds and smoke-tests the image.
 - **Optional AI:** Gemini only suggests labels or character-level OCR fixes; responses are strictly validated and applied one by one after explicit consent.
 

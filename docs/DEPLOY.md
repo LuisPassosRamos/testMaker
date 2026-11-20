@@ -90,11 +90,11 @@ Use uma conta Google da escola com verificação em duas etapas, crie uma senha 
 
 ## 5. Entregar aos professores
 
-- Endereço: **provamadre.duckdns.org** (o navegador completa o `https://`).
+- Endereço: **<https://provamadre-e34ad34b056f.herokuapp.com>** (caminho B: `provamadre.duckdns.org`).
 - Código da escola: o que você definiu.
 - Dica: imprima um cartaz para a sala dos professores com o endereço e um QR Code dele.
 
-Para trocar o código (por exemplo, no início do ano), edite `ACCESS_CODE` no `.env` do servidor e rode `bash deploy/update.sh`. Todos os aparelhos precisarão digitar o novo código.
+Para trocar o código (por exemplo, no início do ano): no Heroku, edite `ACCESS_CODE` em **Settings → Config Vars** (o app reinicia sozinho); no caminho B, edite o `.env` do servidor e rode `bash deploy/update.sh`. Todos os aparelhos precisarão digitar o novo código.
 
 ---
 
