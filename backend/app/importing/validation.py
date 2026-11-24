@@ -174,12 +174,6 @@ def _validate_docx(display: str, data: bytes) -> ValidatedFile:
                 "docx_macros",
                 f"“{display}” contém macros e não é aceito por segurança. Salve como .docx comum.",
             )
-        content_types = zf.read("[Content_Types].xml")
-        if b"macroEnabled" in content_types:
-            raise UploadRejected(
-                "docx_macros",
-                f"“{display}” contém macros e não é aceito por segurança. Salve como .docx comum.",
-            )
         infos = zf.infolist()
         total = sum(i.file_size for i in infos)
         if len(infos) > 5000 or total > 400 * 1024 * 1024:
@@ -189,4 +183,15 @@ def _validate_docx(display: str, data: bytes) -> ValidatedFile:
                 info.file_size / info.compress_size > 150
             ):
                 raise UploadRejected("docx_bomb", f"“{display}” tem um conteúdo interno suspeito.")
+        try:
+            content_types = zf.read("[Content_Types].xml")
+        except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+            raise UploadRejected(
+                "docx_invalid", f"“{display}” parece estar corrompido."
+            ) from exc
+        if b"macroEnabled" in content_types:
+            raise UploadRejected(
+                "docx_macros",
+                f"“{display}” contém macros e não é aceito por segurança. Salve como .docx comum.",
+            )
     return ValidatedFile("docx", ".docx", data, display, None)

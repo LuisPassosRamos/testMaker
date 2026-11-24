@@ -4,6 +4,12 @@
 
 O professor **cria a prova com inteligência artificial** a partir do que trabalhou em sala (conteúdos, plano de aula, fotos do caderno ou do livro), ou envia a prova do jeito que ela estiver (Word, PDF ou fotos). O Prova Pronta organiza questões, alternativas, textos de apoio e imagens no padrão da escola, o professor confere numa prévia com um ou dois cliques por ajuste e envia o PDF e o Word direto para a equipe de impressão. Provas criadas com IA vêm com **gabarito** separado, só para o professor.
 
+## Experimente com uma prova de exemplo
+
+Depois da [instalação local](#instalação-no-windows-um-computador), abra a aplicação e importe a [prova sintética de matemática em Word](samples/prova-matematica.docx). Confira as questões ao lado do original, gere o Word e abra a prévia de PDF. Repita com a [versão digitalizada](samples/prova-digitalizada.pdf) para comparar a leitura pelo OCR. A importação funciona sem chave de IA e o envio de teste fica em `data/outbox`.
+
+No código, comece pela [extração](backend/app/extraction/pipeline.py), pela [estruturação de questões](backend/app/structuring/segmenter.py) e pela [diagramação em Word](backend/app/rendering/docx_writer.py). Os [testes da API](backend/tests/test_api_flow.py) acompanham o fluxo. Veja o [case no portfólio](https://luispassosramos.github.io/LuisPortifolio/projetos/gerador-de-provas/).
+
 ![Tela de conferência: original à esquerda, conteúdo organizado à direita](docs/images/conferir.png)
 
 > _In English:_ a FastAPI + React app that turns teachers' exams (DOCX, PDFs, scans and phone photos) into a faithful structured model, lets them review it side by side with the original, lays it out with python-docx using the school's header, previews the real PDF and e-mails it to the school's print room. See [the English summary](#in-english) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
