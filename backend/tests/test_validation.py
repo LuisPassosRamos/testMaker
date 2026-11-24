@@ -77,6 +77,18 @@ def test_rejects_oversized_and_tiny_files(settings):
     assert err.value.code == "image_too_small"
 
 
+def test_invalid_docx_metadata_returns_upload_error(settings, monkeypatch):
+    document = _zip({"[Content_Types].xml": b"<Types/>", "word/document.xml": b"<w/>"})
+
+    def read_invalid_member(*args, **kwargs):
+        raise zipfile.BadZipFile("invalid internal member")
+
+    monkeypatch.setattr(zipfile.ZipFile, "read", read_invalid_member)
+    with pytest.raises(UploadRejected) as err:
+        validate_upload("prova.docx", document, settings)
+    assert err.value.code == "docx_invalid"
+
+
 def test_display_names_are_sanitised():
     assert sanitize_display_name("..\\..\\C:/temp/<prova>.pdf") == "prova.pdf"
     assert sanitize_display_name(None) == "arquivo"
